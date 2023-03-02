@@ -1,7 +1,7 @@
 from pymavlink import mavutil
+from .messages import MesDef, MesDefs, Message, Messages
+from typing import Union
 
-
-from pymavlink.dialects.v10 import *
 
 class Connection:
     def __init__(self, master: mavutil.mavfile, sysid: int) -> None:
@@ -9,20 +9,25 @@ class Connection:
         self.sysid = sysid
         
         
-    def request_msg(self,msg_id):
-        self.master.mav.command_long_send(
-            self.sysid,
-            self.master.target_component,
-            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
-            0,
-            msg_id, 0, 0, 0, 0, 0, 0
-        )
+    def request_msg(self, message: Union[MesDefs, MesDef]):
+        message = MesDefs([message]) if isinstance(message, MesDef) else message
+            
+        for m in message:
+            self.master.mav.command_long_send(
+                self.sysid,
+                self.master.target_component,
+                mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+                0,
+                m.id, 0, 0, 0, 0, 0, 0
+            )
+    def send_message(message: Union[Message, Messages]):
+        pass
         
+    def receive_msg(self, message: Union[MesDefs, MesDef]):
         
-    def read_msg(self, msg_id):
         while True:
-            self.request_msg(msg_id)
-            message = self.master.recv_match(type = 'LOCAL_POSITION_NED',blocking=True)
-            if message.get_srcSystem() == self.sysid:
-                return message
+            response = self.master.recv_match(type = message.msgname, blocking=True)
+            if response.get_srcSystem() == self.sysid:
+                return response
+        
     
