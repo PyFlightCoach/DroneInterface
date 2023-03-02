@@ -1,0 +1,1 @@
+This project will contain a tidy way to talk to a Drone through PyMavLink
