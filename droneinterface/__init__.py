@@ -1,0 +1,1 @@
+import pymavlink.dialects.v20.common as mavlink

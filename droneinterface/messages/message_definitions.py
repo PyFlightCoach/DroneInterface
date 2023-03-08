@@ -1,19 +1,11 @@
 
-from . import mavlink
+from droneinterface.messages import mavlink
 from flightanalysis.base.collection import Collection
 from typing import Union
 
 
-class MesDef:
-    def __init__(self, Mess: type):
-        self.Mess = Mess
-
-    def __getattr__(self, name):
-        return getattr(self.Mess, name)
-
-
 class MesDefs(Collection):
-    VType = MesDef
+    VType = type
     uid = "msgname"
     
     def __init__(self, data):
@@ -25,7 +17,7 @@ class MesDefs(Collection):
         if isinstance(id, int):
             return self.idmap[id]
         elif isinstance(id, list):
-            return MesDef([self.idmap[i] for i in id])
+            return [self.idmap[i] for i in id]
         else:
             raise AttributeError("expected an int or list")
 
@@ -34,7 +26,7 @@ class MesDefs(Collection):
   
      
 mdefs = MesDefs(
-    [MesDef(M) for M in mavlink.MAVLink_message.__subclasses__() if hasattr(M, "msgname")]
+    [M for M in mavlink.MAVLink_message.__subclasses__() if hasattr(M, "msgname")]
 )
 
 
