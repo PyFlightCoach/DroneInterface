@@ -26,7 +26,7 @@ class MesDefs(Collection):
   
      
 mdefs = MesDefs(
-    [M for M in mavlink.MAVLink_message.__subclasses__() if hasattr(M, "msgname")]
+    [M for M in mavlink.mavlink_map.values() if hasattr(M, "msgname")]
 )
 
 

@@ -1,3 +1,6 @@
+"""These classes wrap mavlink messages and convert them into useful entities, 
+for example seperate x,y,z values go into pfc-geometry Point objects and modes are interpreted."""
+
 from droneinterface.messages import mavlink
 from geometry import Point, GPS, Quaternion
 from pymavlink import mavutil
@@ -12,7 +15,11 @@ class MessageWrapper():
         self.time = msg._timestamp
 
     def __init_subclass__(cls):
+        # could just build it later with __sublcasses__ or something but this seems neat
         wrappers[cls.id] = cls    
+
+    def __str__(self):
+        return f"id:{self.id}, name:{self.__class__.__name__}, time:{self.time}"
 
 
 class HomePosition(MessageWrapper):
@@ -34,7 +41,7 @@ class Heartbeat(MessageWrapper):
         self.mode = mavutil.mode_mapping_bynumber(msg.type)[msg.custom_mode]
         self.system_status = msg.system_status
         self.initialised = self.system_status >= 3
-        # dronekit uses this for some reason: 
+        # The above seems to work but dronekit uses this for some reason:
         # self.initialised = not self.mode in [None, 'INITIALISING', 'MAV']
         
             

@@ -14,7 +14,7 @@ end = time() + 10
 while time() < end:
     for m in msgs:
         try:
-            print(observer.data[m].__dict__)
+            print(observer.data[m])
         except Exception as ex:
             print(ex)
     sleep(1)
