@@ -1,2 +1,4 @@
 pymavlink
+numpy
+pandas
 flightanalysis
