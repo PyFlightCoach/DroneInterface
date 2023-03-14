@@ -7,16 +7,25 @@ from typing import Union, List
 from time import time
 from .messages import MessageWrapper, wrappers, mdefs
 from threading import Thread
+import logging
 
 wrappermap ={wr.__name__.lower(): wr for wr in wrappers.values()}
+
+class TimeoutError(Exception):
+        pass
+
 
 class Connection:
     def __init__(self, master: mavutil.mavfile, sysid: int) -> None:
         self.master = master
         self.sysid = sysid
     
+    def __str__(self):
+        return f"Connection(add={self.master.address}, sysid={self.sysid})"
+    
     @staticmethod
     def connect(constr: str, sysid: int):
+        logging.info(f"Connecting to {constr}, source {sysid}")
         return Connection(
             mavutil.mavlink_connection(constr), 
             sysid
@@ -25,39 +34,48 @@ class Connection:
     def __getattr__(self, name) -> MessageWrapper:
         name = name.lower()
         if name in wrappermap:
-            return self.get_message(wrappermap[name].id)
+            return self.get_message(wrappermap[name].id, 0.2)
         raise AttributeError(f"{name} not found in message wrappers")
     
     def wait_for_boot(self):
+        logging.info("Waiting for boot")
         #print("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))    
-        while not self.receive_msg(mavlink.MAVLINK_MSG_ID_HEARTBEAT).initialised:
+        while not self.receive_msg(mavlink.MAVLINK_MSG_ID_HEARTBEAT, timeout=2.0).initialised:
             pass
+        logging.info(f"Booted")
         return self
 
     def request_msg(self, id: int, rate:int=0):
+        logging.debug(f"requesting message {id} at {rate} hz")
         self.master.mav.send(mavlink.MAVLink_command_long_message(
                 self.sysid,
                 self.master.target_component,
                 mavlink.MAV_CMD_REQUEST_MESSAGE if rate==0 else mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
                 0, id, 
                 0 if rate<=0 else 1e6/rate, 
-                0, 0, 0, 0, 0    
+                0, 0, 0, 0, 0 # TODO should it be 1 to target message at sender?    
         ))
         
     def receive_msg(self, id: int, timeout=0.2):
+        logging.debug(f"waiting for message {id}")
         finish = time() + timeout
         while time() < finish:
             response = self.master.recv_match(
                 type = mavlink.mavlink_map[id].msgname, 
-                blocking=True
-            )
+                blocking=True,
+                timeout=timeout
+            ) # TODO check the target component
+            if response is None:
+                break
+            logging.debug(f"received {response}")
             if response.get_srcSystem() == self.sysid:
                 if id in wrappers:
                     return wrappers[id](response)
                 else:
                     return response
-        else:
-            pass
+        
+        logging.error(f"Timeout waiting for message id {id}")
+        raise TimeoutError(f"Timeout after {timeout}s waiting for message {id}")
     
     def get_message(self, id, timeout=0.2):
         self.request_msg(id)
@@ -113,7 +131,11 @@ class Observer():
     def __exit__(self, xc_type, exc_value, exc_tb):
         self.stop()
     
+    def __str__(self):
+        return f"Observer(conn={self.conn}, messages={self.ids})"
+    
     def start(self):
+        logging.info(f"starting observer,  {self}")
         self.thr = Thread(target=self.run, daemon=True)
         self.thr.start()
         return self
@@ -122,4 +144,5 @@ class Observer():
         self._alive = False
         self.thr.join()
         self.on_close()
+        logging.info(f"closed observer,  {self}")
         

@@ -7,6 +7,11 @@ from pymavlink import mavutil
 import numpy as np
 
 wrappers = {}
+
+
+def attr_search(pre="", suf="", chars=list("xyz")):
+    return lambda msg : [getattr(msg, f"{pre}{d}{suf}") for d in chars]
+
    
 class MessageWrapper():
     id = None
@@ -21,6 +26,8 @@ class MessageWrapper():
     def __str__(self):
         return f"id:{self.id}, name:{self.__class__.__name__}, time:{self.time}"
 
+    
+    
 
 class HomePosition(MessageWrapper):
     id = mavlink.MAVLINK_MSG_ID_HOME_POSITION
@@ -40,9 +47,9 @@ class Heartbeat(MessageWrapper):
         self.autopilot = msg.autopilot
         self.mode = mavutil.mode_mapping_bynumber(msg.type)[msg.custom_mode]
         self.system_status = msg.system_status
-        self.initialised = self.system_status >= 3
+        #self.initialised = self.system_status >= 3
         # The above seems to work but dronekit uses this for some reason:
-        # self.initialised = not self.mode in [None, 'INITIALISING', 'MAV']
+        self.initialised = not self.mode in [None, 'INITIALISING', 'MAV']
         
             
 class AttitudeQuaternion(MessageWrapper):
@@ -81,3 +88,24 @@ class GlobalPositionInt(MessageWrapper):
         self.velocity = Point(msg.vx, msg.vy, msg.vz)/100
         self.heading = np.radians(msg.hdg / 10)
 
+class HighResIMU(MessageWrapper):
+    id = mavlink.MAVLINK_MSG_ID_HIGHRES_IMU
+    def __init__(self, msg: mavlink.MAVLink_highres_imu_message) -> None:
+        super().__init__(msg)
+        self.acc = Point(*attr_search(suf="acc")(msg))
+        self.gyro = Point(*attr_search(suf="gyro")(msg))
+        self.mag = Point(*attr_search(suf="mag")(msg))
+        self.abs_pressure = msg.abs_pressure
+        self.diff_pressure = msg.diff_pressure
+        self.press_alt = msg.pressure_alt
+        self.temperature = msg.temperature
+        self.imu_id = msg.id
+        
+class ScaledIMU(MessageWrapper):
+    id = mavlink.MAVLINK_MSG_ID_SCALED_IMU
+    def __init__(self, msg: mavlink.MAVLink_scaled_imu_message) -> None:
+        super().__init__(msg)
+        self.acc = Point(*attr_search(suf="acc")(msg)) / 981
+        self.gyro = Point(*attr_search(suf="gyro")(msg)) / 1000
+        self.mag = Point(*attr_search(suf="mag")(msg)) / 1000
+        self.temperature = msg.temperature
