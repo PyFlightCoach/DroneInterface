@@ -1,13 +1,12 @@
 from .messages import wrappers, MessageWrapper, AttitudeQuaternion, LocalPositionNEDCov
 from flightanalysis import State, Box, FlightLine
 from typing import List, Any, Dict
-from .vehicle import Vehicle
 
 combinators = {}
 
 class Combinator:
     wrappers = dict()
-    def __init__(self, vehicle: Vehicle, messages: Dict(str, MessageWrapper)) -> None:
+    def __init__(self, vehicle, messages: Dict[str, MessageWrapper]) -> None:
         self.vehicle = vehicle
         self.messages = messages
         
@@ -42,4 +41,14 @@ class StateMaker(Combinator):
             #racc = to_body()
         )
         
+
+
+def append_combinators(obj):
     
+    for cname, Combi in combinators.items():
+        setattr(
+            obj, 
+            cname, 
+            Combi(obj, {k: getattr(obj,v.__name__) for k, v in Combi.wrappers.items()})
+        )
+        
