@@ -1,7 +1,7 @@
 from pytest import fixture
 from droneinterface.connection import Connection
 from droneinterface.messages import mavlink
-from droneinterface.messages.message_wrappers import wrappers
+from droneinterface.messages import wrappers
 from geometry import GPS
 from geometry.testing import assert_almost_equal
 

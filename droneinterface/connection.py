@@ -4,12 +4,11 @@ If wrappers do not exist for the requested message then the original message obj
 from pymavlink import mavutil
 from . import mavlink
 from typing import Union, List
-from time import time, sleep
-from .messages import wrappers, mdefs
+from time import time
+from .messages import MessageWrapper, wrappers, mdefs
 from threading import Thread
-from copy import deepcopy
 
-
+wrappermap ={wr.__name__.lower(): wr for wr in wrappers.values()}
 
 class Connection:
     def __init__(self, master: mavutil.mavfile, sysid: int) -> None:
@@ -22,7 +21,13 @@ class Connection:
             mavutil.mavlink_connection(constr), 
             sysid
         ).wait_for_boot()
-        
+    
+    def __getattr__(self, name) -> MessageWrapper:
+        name = name.lower()
+        if name in wrappermap:
+            return self.get_message(wrappermap[name].id)
+        raise AttributeError(f"{name} not found in message wrappers")
+    
     def wait_for_boot(self):
         #print("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))    
         while not self.receive_msg(mavlink.MAVLINK_MSG_ID_HEARTBEAT).initialised:
@@ -58,19 +63,18 @@ class Connection:
         self.request_msg(id)
         return self.receive_msg(id, timeout)
     
-    
     def subscribe(self, ids: List[int], rate=10):
         for id in ids:
             self.request_msg(id, 1e6/rate)
         
         #TODO this needs to identify which message requests are not in use by other observers and only close those.
+        # or perhaps there is some way to identify which messages were started by request_msg?
         def close():
             for id in ids:
                 self.request_msg(id, -1)
         
-        observer = Observer(self, ids, close)
-        return observer.start()
-    
+        return Observer(self, ids, close).start()
+        
     
     
 class Observer():
@@ -78,7 +82,7 @@ class Observer():
         self.conn = conn
         self.ids = ids
         self.data = {id: None for id in ids}
-        self.on_close =on_close
+        self.on_close = on_close
         self._alive = False
         self.thr = None
         self._wrapper_names = {wrappers[id].__name__.lower(): id for id in ids}
@@ -103,6 +107,12 @@ class Observer():
                 if msg.id in self.ids:
                     self.data[msg.id] = wrappers[msg.id](msg)    
     
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, xc_type, exc_value, exc_tb):
+        self.stop()
+    
     def start(self):
         self.thr = Thread(target=self.run, daemon=True)
         self.thr.start()
@@ -111,4 +121,5 @@ class Observer():
     def stop(self):
         self._alive = False
         self.thr.join()
+        self.on_close()
         

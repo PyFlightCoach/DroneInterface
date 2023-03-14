@@ -1,5 +1,5 @@
 """These classes wrap mavlink messages and convert them into useful entities, 
-for example seperate x,y,z values go into pfc-geometry Point objects and modes are interpreted."""
+for example seperate x,y,z properties go into pfc-geometry Point objects and modes are interpreted."""
 
 from droneinterface.messages import mavlink
 from geometry import Point, GPS, Quaternion
@@ -60,6 +60,15 @@ class LocalPositionNED(MessageWrapper):
         super().__init__(msg)
         self.position = Point(msg.x, msg.y, msg.z)
         self.velocity = Point(msg.vx, msg.vy, msg.vz)
+
+class LocalPositionNEDCov(MessageWrapper):
+    id = mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED_COV
+    def __init__(self, msg: mavlink.MAVLink_local_position_ned_cov_message) -> None:
+        super().__init__(msg)
+        self.position = Point(msg.x, msg.y, msg.z)
+        self.velocity = Point(msg.vx, msg.vy, msg.vz)
+        self.acceleration = Point(msg.ax, msg.ay, msg.az)
+        self.covariance = msg.cov
 
 
 class GlobalPositionInt(MessageWrapper):
