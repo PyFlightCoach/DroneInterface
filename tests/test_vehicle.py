@@ -13,6 +13,6 @@ def veh():
 def test_attr(veh):
     att = veh.attitudequaternion
     
-    assert isinstance(att.attitude, Quaternion)
+    assert isinstance(att.att, Quaternion)
 
 
