@@ -5,6 +5,7 @@ from pymavlink import mavutil
 from flightanalysis import Box, State, FlightLine
 import logging
 
+
 class Vehicle(Connection):
     def __init__(self, master: mavutil.mavfile, sysid: int, box: Box=None) -> None:
         super().__init__(master, sysid)
@@ -27,4 +28,5 @@ class Vehicle(Connection):
             sysid,
             box
         )
+    
     
