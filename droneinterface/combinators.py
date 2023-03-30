@@ -1,4 +1,4 @@
-from .messages import wrappers, MessageWrapper, AttitudeQuaternion, LocalPositionNED, ScaledIMU
+from .messages import wrappers, AttitudeQuaternion, LocalPositionNED, ScaledIMU
 from flightanalysis import State
 from typing import List, Any, Dict
 from geometry import Transformation
@@ -8,7 +8,7 @@ combinators = {}
 
 class Combinator:
     wrappers = dict()
-    def __init__(self, vehicle, messages: Dict[str, MessageWrapper]) -> None:
+    def __init__(self, vehicle, messages: dict) -> None:
         self.vehicle = vehicle
         self.messages = messages
         self.last_values = None# {k: None for k, v in self.messages.items()}
@@ -16,7 +16,7 @@ class Combinator:
     def snap(self):
         self.last_values = {k: getattr(self.vehicle, v.__name__) for k, v in self.messages.items()} 
     
-    def __getattr__(self, name) -> MessageWrapper:
+    def __getattr__(self, name):
         if name in self.messages:
             if self.last_values is None:
                 self.snap()
@@ -55,6 +55,7 @@ class StateMaker(Combinator):
             #racc = to_body()  # no idea where to get this from
         )
         
+
 
 def append_combinators(obj):
     
