@@ -12,7 +12,7 @@ class Combinator:
     def __init__(self, vehicle) -> None:
         self.vehicle = vehicle
         self.last_values = None
-        
+
         
     @property
     def ids(self) -> List[int]:
@@ -45,9 +45,8 @@ class StateMaker(Combinator):
        
 
     def __call__(self) -> State:
-        self.snap()        
+        self.snap()
         att = self.vehicle.flightline.transform_to.apply(self.matt.att)
-        
         to_body = lambda p : att.inverse().transform_point(self.vehicle.flightline.transform_to.apply(p))
         
         return State.from_transform(

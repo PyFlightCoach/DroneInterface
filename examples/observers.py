@@ -14,7 +14,11 @@ print(conn.HomePosition)
 #mavlink message subscription using a with statement
 with conn.subscribe(conn.get_state.ids) as observer:
     for i in range(10):
-        print(observer.get_state())
+        print(i)
+        try:
+            print(observer.get_state())
+        except Exception as ex:
+            print(ex)
         sleep(1)
 
 
