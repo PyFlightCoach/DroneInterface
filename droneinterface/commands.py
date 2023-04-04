@@ -39,3 +39,7 @@ def request_message(id: int):
 @command
 def set_message_rate(id: int, rate: float):
     return (mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, id, rate)
+
+@command
+def set_mode(mode: int):
+    return (mavlink.MAV_CMD_DO_SET_MODE, mode)

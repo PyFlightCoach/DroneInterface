@@ -44,6 +44,9 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
             kwargs[pl.name] = val
         for k, v in kwargs.items():
             setattr(self, k, v)
+        for l in links:
+            if not hasattr(self, l.name):
+                raise AttributeError(f"Missing required attribute {l.name} in {self.__class__.__name__}")
     
     @classmethod
     def parser(cls, msg: MsgCls):
@@ -51,7 +54,9 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
         return cls(msg._timestamp, *[pl.read(msg) for pl in links])
     
     def encoder(self) -> MsgCls:
-        return MsgCls(**{l.write(getattr(self, l.name)) for l in links})
+        kws = [l.write(getattr(self, l.name)) for l in links]
+
+        return MsgCls(**{k: v for kw in kws for k, v in kw.items()})
     
     def setter(self, target_system, target_component):
         if set_id is not None:

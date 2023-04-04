@@ -26,7 +26,9 @@ Heartbeat = wrapper_factory(
     [],
     dict(
         mode = property(lambda self: mavutil.mode_mapping_bynumber(self.type)[self.custom_mode]),
-        initialised = property(lambda self: not self.mode in [None, 'INITIALISING', 'MAV'])
+        initialised = property(lambda self: not self.mode in [None, 'INITIALISING', 'MAV']),
+        mav_mode=property(lambda self : mavlink.enums["MAV_MODE"][self.custom_mode]),
+        armed=property(lambda self: (self.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0)
     )
 )
 
@@ -113,3 +115,8 @@ PositionTargetLocal = wrapper_factory(
     ]
 )
 
+CommandLongMessage = wrapper_factory(
+    "CommandLongMessage",
+    mavlink.MAVLINK_MSG_ID_COMMAND_LONG,
+    []
+)
