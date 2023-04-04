@@ -8,18 +8,14 @@ logging.basicConfig(level=logging.DEBUG)
 conn = Vehicle.connect('tcp:127.0.0.1:5760', 1)
 
 
-print(conn.HomePosition)
-
-
 #mavlink message subscription using a with statement
 with conn.subscribe(conn.get_state.ids) as observer:
     for i in range(10):
-        print(i)
         try:
-            print(observer.get_state())
+            logging.info(observer.get_state())
         except Exception as ex:
             print(ex)
-        sleep(1)
+        sleep(0.2)
 
 
 #mavlink message subscription, handling the context manually
@@ -33,8 +29,8 @@ observer = conn.subscribe(msgs)
 
 for i in range(10):
     for m in msgs:
-        print(observer[m])
-    sleep(1)
+        logging.info(observer[m])
+    sleep(0.2)
     
 observer.stop()
 

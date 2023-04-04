@@ -64,11 +64,13 @@ class Vehicle:
             return lambda *args : self.send_command(*command_map[name](*args))
         raise AttributeError(f"{name} not found in message wrappers")
     
-    def wait_for_boot(self) -> Vehicle:
+    def wait_for_boot(self, timeout=20) -> Vehicle:
         logging.info("Waiting for boot")
+        end = time() + timeout
         #print("Heartbeat from system (system %u component %u)" % (the_Vehicle.target_system, the_Vehicle.target_component))    
-        while not self.receive_msg(mavlink.MAVLINK_MSG_ID_HEARTBEAT, timeout=2.0).initialised:
-            pass
+        while not self.receive_msg(mavlink.MAVLINK_MSG_ID_HEARTBEAT, timeout=20.0).initialised:
+            if time() > end:
+                raise TimeoutError(f"Timeout after {timeout}s waiting for boot")
         logging.info(f"Booted")
         return self
 
@@ -138,8 +140,9 @@ class Observer():
             return self.data[getattr(mdefs, name).id]
         elif name.lower() in self._wrapper_names:
             return self.data[self._wrapper_names[name.lower()]]
-        else:
+        elif not name in mdefs and not name.lower() in wrappers:
             return getattr(self.conn, name)
+        raise AttributeError(f"{name} does not exist in {self.__class__.__name__}")
     
     def __getitem__(self, i: int):
         return self.data[i]
@@ -152,8 +155,10 @@ class Observer():
                 continue
             elif hasattr(msg, "id") and msg.get_srcSystem() == self.conn.sysid:
                 if msg.id in self.ids:
-                    self.data[msg.id] = wrappers[msg.id].parse(msg)    
-    
+                    try:
+                        self.data[msg.id] = wrappers[msg.id].parse(msg)    
+                    except Exception as e:
+                        pass#logging.debug(e)
     def __enter__(self):
         return self
     
