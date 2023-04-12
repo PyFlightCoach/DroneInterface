@@ -120,3 +120,24 @@ CommandLongMessage = wrapper_factory(
     mavlink.MAVLINK_MSG_ID_COMMAND_LONG,
     []
 )
+
+GPSRawInt = wrapper_factory(
+    "GPSRawInt",
+    mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,
+    [
+        ("position", GPS, ["lat", "lon"], lambda v : v/1e7, lambda v : v*1e7),
+        ("alt", lambda v : v, ["alt"], lambda v : v/1e3, lambda v : v*1e3),
+    ],
+    dict(
+        gps_fix=property(lambda self : mavlink.enums["GPS_FIX_TYPE"][self.fix_type])
+    )
+)
+
+EKFStatus = wrapper_factory(
+    "EKFStatus",
+    mavlink.MAVLINK_MSG_ID_EKF_STATUS_REPORT,
+    [],
+    dict(
+        is_good=property(lambda self: (self.flags & mavlink.EKF_PRED_POS_HORIZ_ABS) > 0)
+    )
+)
