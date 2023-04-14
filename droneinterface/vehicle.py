@@ -7,7 +7,7 @@ from . import mavlink
 from typing import Union, List
 from time import time, sleep
 from .messages import wrappers, mdefs
-from threading import Thread
+from threading import Thread, Event
 import logging
 from .commands import command_map
 from flightanalysis import Box, State, FlightLine
@@ -70,7 +70,7 @@ class Vehicle(Base):
     def wait_for_boot(self, timeout=20) -> Vehicle:
         logging.info(self._msg("Waiting for boot"))
         end = time() + timeout
-        with self.subscribe([0, 24, 193], 4, True) as checks:
+        with self.subscribe([0, 24, 193], 4, False, False) as checks:
             while True:
                 results = {
                     "IMU initialised": checks.heartbeat.initialised,
@@ -122,9 +122,10 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
-    def subscribe(self, ids: List[int], rate=10, cleanup=False, wait=True) -> Observer:
-        for id in ids:
-            self.set_message_rate(id, 1e6/rate )
+    def subscribe(self, ids: List[int], rate=10, set_rates=True, cleanup=False, wait=True) -> Observer:
+        if set_rates:
+            for id in ids:
+                self.set_message_rate(id, 1e6/rate )
         
         #TODO this needs to identify which message requests are not in use by other observers and only close those.
         # or perhaps there is some way to identify which messages were started by request_msg?
@@ -145,7 +146,19 @@ class Observer(Base):
         self.thr = None
         self._wrapper_names = {wrappers[id].__name__.lower(): id for id in ids}
         self.rate = rate
+        self._last_message = None
+        self.new_message = Event()
         append_combinators(self, self.ids)
+
+    @property
+    def last_message(self):
+        self.new_message.clear()
+        return self._last_message
+
+    @property
+    def next_message(self):
+        self.new_message.wait()
+        return self.last_message
 
     def __getattr__(self, name: str):
         if name in mdefs.data:
@@ -154,23 +167,32 @@ class Observer(Base):
             return self.data[self._wrapper_names[name.lower()]]
         elif not name in mdefs and not name.lower() in wrappers:
             return getattr(self.conn, name)
+        elif len(name) > 6: 
+            if name[:6] == "next_":
+                self.new_message.wait()
+                res = getattr(self, f"get_{name[6:]}")()
+                self.new_message.clear()
+                return res
         raise AttributeError(f"{name} does not exist in {self.__class__.__name__}")
     
     def __getitem__(self, i: int):
         return self.data[i]
     
+    def _process_message(self, msg):
+        if hasattr(msg, "id") and msg.get_srcSystem() == self.conn.sysid:
+            if msg.id in self.ids:
+                self._last_message = wrappers[msg.id].parse(msg)
+                self.data[msg.id] = self._last_message
+                self.new_message.set()
+                
     def run(self):
         self._alive = True
         while self._alive:
-            msg = self.conn.master.recv_match(blocking=True)
-            if not msg:
-                continue
-            elif hasattr(msg, "id") and msg.get_srcSystem() == self.conn.sysid:
-                if msg.id in self.ids:
-                    try:
-                        self.data[msg.id] = wrappers[msg.id].parse(msg)    
-                    except Exception as e:
-                        pass#logging.debug(e)
+            try:
+                self._process_message(self.conn.master.recv_match(blocking=True))
+            except Exception as ex:
+                logging.debug(ex)
+            
     def __enter__(self):
         return self
     

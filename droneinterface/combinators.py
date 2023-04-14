@@ -67,4 +67,4 @@ def append_combinators(obj, reduced_ids: List[int] = None) -> None:
         combi = Combi(vehicle=obj)
         if reduced_ids is None or all([id in reduced_ids for id in combi.ids]):
 
-            setattr(obj, f"get_{cname.lower()}", combi) # TODO can this be a property?
+            setattr(obj, f"get_{cname.lower()}", combi)
