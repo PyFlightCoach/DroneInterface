@@ -13,9 +13,20 @@ HomePosition = wrapper_factory(
     mavlink.MAVLINK_MSG_ID_HOME_POSITION,
     [
         ("home", GPS, ["latitude", "longitude"], lambda v : v/1e7, lambda v : v*1e7),
+        ("altitude", lambda v : v, ["altitude"], lambda v : v/1e3, lambda v : v*1e3),
         ("position", Point, ["x", "y", "z"]),
         ("approach", Point, [f"approach_{d}" for d in list("xyz")]),
         ("q", Quaternion, ["q"])
+    ]
+)
+
+
+GlobalOrigin = wrapper_factory(
+    "GlobalOrigin",
+    mavlink.MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN,
+    [
+        ("position", GPS, ["latitude", "longitude"], lambda v : v/1e7, lambda v : v*1e7),
+        ("altitude", lambda v : v, ["altitude"], lambda v : v/1e3, lambda v : v*1e3),
     ]
 )
 
@@ -27,7 +38,7 @@ Heartbeat = wrapper_factory(
     dict(
         mode = property(lambda self: mavutil.mode_mapping_bynumber(self.type)[self.custom_mode]),
         initialised = property(lambda self: not self.mode in [None, 'INITIALISING', 'MAV']),
-        mav_mode=property(lambda self : mavlink.enums["MAV_MODE"][self.custom_mode]),
+        #mav_mode=property(lambda self : mavlink.enums["MAV_MODE"][self.custom_mode]),
         armed=property(lambda self: (self.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0)
     )
 )
@@ -115,11 +126,6 @@ PositionTargetLocal = wrapper_factory(
     ]
 )
 
-CommandLongMessage = wrapper_factory(
-    "CommandLongMessage",
-    mavlink.MAVLINK_MSG_ID_COMMAND_LONG,
-    []
-)
 
 GPSRawInt = wrapper_factory(
     "GPSRawInt",
@@ -141,3 +147,12 @@ EKFStatus = wrapper_factory(
         is_good=property(lambda self: (self.flags & mavlink.EKF_PRED_POS_HORIZ_ABS) > 0)
     )
 )
+
+
+for msgid, msgcls in mavlink.mavlink_map.items():
+    if not msgid in wrappers:
+        wrapper_factory(
+            ''.join(word.title() for word in msgcls.__name__[7:-7].split("_")),
+            msgid, []
+        )
+

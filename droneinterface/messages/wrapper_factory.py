@@ -12,6 +12,7 @@ class ParamLink:
         self.name = name
         self.builder = builder
         self.params = params
+        
         self.tofunc = (lambda v: v) if tofunc is None else tofunc
         self.fromfunc = (lambda v: v) if fromfunc is None else fromfunc
 

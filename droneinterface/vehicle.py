@@ -37,23 +37,26 @@ class Vehicle(Base):
         return f"Vehicle(add={self.master.address}, sysid={self.sysid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, box: Box=None) -> Vehicle:
+    def connect(constr: str, sysid: int, box: Box=None, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, source {sysid}")
+        
         conn = Vehicle(
-            mavutil.mavlink_connection(constr), 
+            mavutil.mavlink_connection(constr, **kwargs), 
             sysid
         ).wait_for_boot()
+        
+        origin = conn.GlobalOrigin.position
 
-        return conn if box is None else conn.update(flightline=FlightLine(
-                    Box("home", conn.homeposition.home, 0),
-                    box
-            ))
+        if box is None:
+            box = Box("home", origin, 0)
+
+        return conn.update(flightline=FlightLine.from_box(box, origin))
 
     def update(self, **kwargs) -> Vehicle:
         args = inspect.getfullargspec(self.__class__.__init__)[0]
         args.remove("self")
         return Vehicle(
-                *[kwargs[a] if a in kwargs else getattr(self, a) for a in args]
+                *[(kwargs[a] if (a in kwargs) else getattr(self, a)) for a in args]
             )
 
     def __getattr__(self, name):

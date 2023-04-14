@@ -10,11 +10,11 @@ def command(fun):
 
 @command
 def arm():
-    return (mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1)
+    return (mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1, 21196)
 
 @command
 def disarm():
-    return (mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0)
+    return (mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 21196)
         
 @command
 def set_airspeed(speed: float):
@@ -42,4 +42,4 @@ def set_message_rate(id: int, rate: float):
 
 @command
 def set_mode(mode: int):
-    return (mavlink.MAV_CMD_DO_SET_MODE, mode)
+    return (mavlink.MAV_CMD_DO_SET_MODE, mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode)
