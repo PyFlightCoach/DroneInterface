@@ -1,0 +1,66 @@
+from __future__ import annotations
+from pymavlink import mavutil
+from typing import Union, List
+from time import time, sleep
+from threading import Thread, Event
+import logging
+from flightanalysis import Box, State, FlightLine
+from geometry import Coord
+import numpy as np
+
+
+logging.basicConfig(level=logging.INFO)
+
+
+
+class LastMessage:
+    def __init__(self, id, n=3):
+        self.id = id
+        self.last_message = None
+        self.times = [0,0,0]
+        self.n = n
+        
+
+    def new_message(self, msg):
+        self.times.insert(0, msg._timestamp)
+        self.times.pop()
+        self.last_message = msg
+
+    @property
+    def frequency(self):
+        return -1 / np.diff(self.times).mean()
+
+
+class Connection(Thread):
+    def __init__(self, master: mavutil.mavfile, sysid: int):
+        super().__init__(daemon=True)
+        self.master = master
+        self.sysid = sysid
+
+        self.msgs = {}
+
+    def run(self):
+        while True:
+            msg = self.master.recv_match(blocking=True)
+            if not msg.id in self.msgs:
+                self.msgs[msg.id] = LastMessage(msg.id)
+            self.msgs[msg.id].new_message(msg)
+            
+
+
+
+if __name__ == "__main__":
+    conn = Connection(mavutil.mavlink_connection('tcp:127.0.0.1:5760'), 1)
+
+
+    conn.start()
+    
+    import plotly.express as px
+
+    px.line()
+
+    while True:
+        
+        logging.info({k: v.frequency for k, v in conn.msgs.items()})
+        sleep(1)
+    pass

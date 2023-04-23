@@ -149,6 +149,27 @@ EKFStatus = wrapper_factory(
 )
 
 
+BatteryStatus = wrapper_factory(
+    "BatteryStatus",
+    mavlink.MAVLINK_MSG_ID_BATTERY_STATUS,
+    [
+        ("voltage", lambda v: v[0] / 1000, ["voltages"], lambda v : [v * 1000] + [0 for _ in range(9)]),
+        ("current", lambda v: v / 10, ["current_battery"], lambda v : v * 10),
+    ]
+)
+
+
+Wind = wrapper_factory(
+    "Wind",
+    mavlink.MAVLINK_MSG_ID_WIND_COV,
+    [
+        ("velocity", Point, ["wind_x", "wind_y", "wind_z"]),
+    ]
+
+)
+
+
+#wrap all the remaining messages in wrappers that do nothing:
 for msgid, msgcls in mavlink.mavlink_map.items():
     if not msgid in wrappers:
         wrapper_factory(
