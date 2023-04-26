@@ -1,66 +1,121 @@
 from __future__ import annotations
 from pymavlink import mavutil
-from typing import Union, List
+from typing import Union, List, Dict
 from time import time, sleep
+from datetime import datetime
 from threading import Thread, Event
 import logging
 from flightanalysis import Box, State, FlightLine
 from geometry import Coord
+from droneinterface import mavlink
 import numpy as np
-
-
-logging.basicConfig(level=logging.INFO)
-
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import pandas as pd
+from numbers import Number
+from functools import partial
 
 
 class LastMessage:
-    def __init__(self, id, n=3):
-        self.id = id
+    def __init__(self, key, msgcls, outfile: Path=None, n=3):
+        self.key = key
         self.last_message = None
         self.times = [0,0,0]
+        self.outfile = outfile
         self.n = n
-        
+        self.count = 0
+        self.msgcls = msgcls
 
-    def new_message(self, msg):
+        self.colmap = {"timestamp": lambda msg: msg._timestamp}
+        self.rev_colmap = {}
+        for fname, l in zip(msgcls.ordered_fieldnames, msgcls.lengths):
+            if l == 1:
+                self.colmap[fname] = partial(lambda fname, msg: getattr(msg, fname), fname)
+                self.rev_colmap[fname] = partial(lambda fname, data: data[fname], fname)
+            else:
+                for i in range(l):
+                    self.colmap[f"{fname}_{i}"] = partial(lambda fname, i, msg: getattr(msg, fname)[i], fname, i)
+                self.rev_colmap[fname] = partial(lambda fname, i, l, data: [data[f"{fname}_{i}"] for i in range(l)], fname, i, l)
+
+        if outfile is not None:
+            cols = list(self.colmap.keys())        
+            with open(outfile, "w") as f:
+                print(",".join(cols), file=f)
+
+    def receive_message(self, msg):        
         self.times.insert(0, msg._timestamp)
         self.times.pop()
         self.last_message = msg
+        self.count += 1
+        if self.outfile is not None:
+            data = [str(v(msg)) for v in self.colmap.values()]
+            with open(self.outfile, "a") as f:
+                print(",".join(data), file=f)
 
     @property
     def frequency(self):
         return -1 / np.diff(self.times).mean()
 
+    @staticmethod
+    def build(key, msgcls, outpath: Path=None, n=3):
+        return LastMessage(key, msgcls, None if outpath is None else outpath / f"{key}.csv", n)
+
+    def all_messages(self) -> pd.DataFrame:
+        return pd.read_csv(self.outfile)
+        
 
 class Connection(Thread):
-    def __init__(self, master: mavutil.mavfile, sysid: int):
+    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: List[int]=None, n=3):
         super().__init__(daemon=True)
         self.master = master
-        self.sysid = sysid
+        self.outdir = outdir
+        self.msgs: Dict[str: LastMessage] = {}
+        self.n = n
 
-        self.msgs = {}
+        self.store_messages = store_messages
+        if self.store_messages is None:
+            self.check_store = lambda msgid: True
+        else:
+            self.check_store = lambda msgid: msgid in self.store_messages
+
 
     def run(self):
         while True:
             msg = self.master.recv_match(blocking=True)
-            if not msg.id in self.msgs:
-                self.msgs[msg.id] = LastMessage(msg.id)
-            self.msgs[msg.id].new_message(msg)
-            
+
+            key = f"{msg.get_srcSystem()}_{msg.get_srcComponent()}_{msg.__class__.id}"
+                            
+            if not key in self.msgs:
+                self.msgs[key] = LastMessage.build(
+                    key, 
+                    msg.__class__, 
+                    self.outdir if self.check_store(msg.__class__.id) else None
+                )
+
+            self.msgs[key].receive_message(msg)
+
+    @staticmethod    
+    def create_folder(path: Path):
+        outdir = path / f"Conn_{datetime.now():%Y_%M_%d_%H_%M_%S}"
+        outdir.mkdir()
+        return outdir
+
 
 
 
 if __name__ == "__main__":
-    conn = Connection(mavutil.mavlink_connection('tcp:127.0.0.1:5760'), 1)
+    logging.basicConfig(level=logging.INFO)
 
-
+    conn = Connection(
+        mavutil.mavlink_connection('tcp:127.0.0.1:5760'),
+        Connection.create_folder(Path("log_tmp"))
+    )
     conn.start()
     
     import plotly.express as px
-
-    px.line()
-
+    
     while True:
-        
-        logging.info({k: v.frequency for k, v in conn.msgs.items()})
+        logging.info({k: int(v.frequency) for k, v in conn.msgs.items()})
         sleep(1)
-    pass
+    
+

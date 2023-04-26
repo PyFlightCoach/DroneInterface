@@ -23,9 +23,10 @@ class TimeoutError(Exception):
 
 
 class Vehicle(Base):
-    def __init__(self, master: mavutil.mavfile, sysid: int, flightline: FlightLine=None) -> None:
+    def __init__(self, master: mavutil.mavfile, sysid: int, compid:int, flightline: FlightLine=None) -> None:
         self.master = master
         self.sysid = sysid
+        self.compid = compid
         if flightline is None:
             self.flightline = FlightLine.home()
         else:
@@ -37,12 +38,12 @@ class Vehicle(Base):
         return f"Vehicle(add={self.master.address}, sysid={self.sysid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, box: Box=None, **kwargs) -> Vehicle:
-        logging.info(f"Connecting to {constr}, source {sysid}")
+    def connect(constr: str, sysid: int, compid:int=1, box: Box=None, **kwargs) -> Vehicle:
+        logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         
         conn = Vehicle(
             mavutil.mavlink_connection(constr, **kwargs), 
-            sysid
+            sysid, compid
         ).wait_for_boot()
         
         origin = conn.GlobalOrigin.position
@@ -99,7 +100,7 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Waiting for message {id}"))
         finish = time() + timeout
         while time() < finish:
-            response = self.master.recv_match(
+            response: mavlink.MAVLink_message = self.master.recv_match(
                 type = mavlink.mavlink_map[id].msgname, 
                 blocking=True,
                 timeout=timeout
@@ -107,7 +108,7 @@ class Vehicle(Base):
             if response is None:
                 break
             logging.debug(self._msg(f"Received {str(response)}"))
-            if response.get_srcSystem() == self.sysid:
+            if response.get_srcSystem() == self.sysid and response.get_srcComponent() == self.compid:
                 if id in wrappers:
                     return wrappers[id].parse(response)
                 else:
