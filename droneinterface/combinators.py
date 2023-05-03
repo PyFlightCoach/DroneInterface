@@ -11,22 +11,13 @@ class Combinator:
     wrappers = dict()
     def __init__(self, vehicle) -> None:
         self.vehicle = vehicle
-        self.last_values = None
 
-        
+    def __getattribute__(self, name: str):
+        return getattr(self.vehicle, name)
+
     @property
     def ids(self) -> List[int]:
         return [wr.id for wr in self.wrappers.values()]
-
-    def snap(self):
-        self.last_values = {k: getattr(self.vehicle, v.__name__) for k, v in self.wrappers.items()} 
-    
-    def __getattr__(self, name):
-        if name in self.wrappers:
-            if self.last_values is None:
-                self.snap()
-            return self.last_values[name]
-        raise AttributeError(f"{name} not found in {self.vehicle}")
 
     def __init_subclass__(cls):
         combinators[cls.output.__name__] = cls  
@@ -37,27 +28,24 @@ class Combinator:
     
 class StateMaker(Combinator):
     output = State
-    wrappers = dict(
-        matt=AttitudeQuaternion, 
-        mpos=LocalPositionNED,
-        macc=ScaledIMU
-    )
-       
 
     def __call__(self) -> State:
-        self.snap()
-        att = self.vehicle.flightline.transform_to.apply(self.matt.att)
+        matt=self.last_AttitudeQuaternion 
+        mpos=self.last_LocalPositionNED
+        macc=self.last_ScaledIMU
+
+        att = self.vehicle.flightline.transform_to.apply(matt.att)
         to_body = lambda p : att.inverse().transform_point(self.vehicle.flightline.transform_to.apply(p))
         
         return State.from_transform(
             Transformation(
-                self.vehicle.flightline.transform_to.apply(self.mpos.position),
+                self.vehicle.flightline.transform_to.apply(mpos.position),
                 att   
             ),
             time = Time.now(),
-            vel = to_body(self.mpos.velocity),
-            rvel = to_body(self.matt.rvel),
-            acc = to_body(self.macc.acc),
+            vel = to_body(mpos.velocity),
+            rvel = to_body(matt.rvel),
+            acc = to_body(macc.acc),
             #racc = to_body()  # TODO no idea where to get this from
         )
         
@@ -67,4 +55,4 @@ def append_combinators(obj, reduced_ids: List[int] = None) -> None:
         combi = Combi(vehicle=obj)
         if reduced_ids is None or all([id in reduced_ids for id in combi.ids]):
 
-            setattr(obj, f"get_{cname.lower()}", combi)
+            setattr(obj, f"last_{cname.lower()}", combi)
