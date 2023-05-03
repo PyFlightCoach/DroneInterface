@@ -15,7 +15,7 @@ from geometry import Coord
 from .combinators import append_combinators
 import inspect
 from . import Base
-from . import Connection
+from . import Connection, LastMessage
 from pathlib import Path
 
 wrappermap ={wr.__name__.lower(): wr for wr in wrappers.values()}
@@ -68,13 +68,16 @@ class Vehicle(Base):
 
     def __getattr__(self, name):
         name = name.lower()
-        if name[:4] == "last":
-            return self.last_message(wrappermap[name[5:]].id)
-        elif name[:3] == "get":
-            return lambda timeout=0.5: self.get_message(wrappermap[name[4:]].id, timeout)
-        elif name in command_map:
+        if "_" in name:
+            _spl = name.split("_")
+            if _spl[1] in wrappermap:
+                if _spl[0] == "last":
+                    return self.last_message(wrappermap[_spl[1]].id)
+                elif _spl[0] == "get":
+                    return lambda timeout=0.5: self.get_message(wrappermap[_spl[1]].id, timeout)
+        if name in command_map:
             return lambda *args : self.send_command(*command_map[name](*args))
-        raise AttributeError(f"{name} not found in message wrappers")
+        raise AttributeError(f"{name} not found in message wrappers or command map")
     
     def wait_for_boot(self) -> Vehicle:
         logging.info(self._msg("Waiting for boot"))
@@ -115,12 +118,63 @@ class Vehicle(Base):
         key = self.msg_key(id)
         if id in wrappers and key in self.conn.msgs:
             return wrappers[id].parse(self.conn.msgs[key].last_message)
-        
+    
+    def next_message(self, id, timeout=0.2):
+        end = time() + timeout
+        while time() < end:
+            msg = self.conn.msg
+            if msg.id == id:
+                return wrappers[id].parse(msg.last_message)
+
     def get_message(self, id, timeout=0.2):
-        try:
-            return self.last_message(id)
-        except Exception as e:
-            self.request_message(id)
-            msg = self.await_message(id, timeout)
-            logging.debug(self._msg(f"Received message: {str(msg)}"))
-            return msg
+        self.request_message(id)
+        msg = self.next_message(id, timeout)
+        logging.debug(self._msg(f"Received message: {str(msg)}"))
+        return msg
+        
+
+class RateHistory:
+    def __init__(self, last_message: LastMessage, desired_rate):
+        self.last_message = last_message
+        self.initial_rate = self.current_rate()
+        self.desired_rate = max(self.initial_rate, desired_rate)
+                
+    def current_rate(self):
+        return self.last_message.rate
+
+    def set_rate(self, veh: Vehicle):
+        if self.current_rate() < self.desired_rate:
+            veh.set_message_rate(self.last_message.id, self.desired_rate)
+
+    def reset_rate(self, veh: Vehicle):
+        veh.set_message_rate(self.last_message.id, self.initial_rate)
+
+
+class Observer(Base, Thread):
+    def __init__(self, veh: Vehicle, ids: List[int], rate: int) -> None:
+        self.veh = veh
+        self.desired_rate = rate
+        self.base_rates = {id: RateHistory(self.conn.msgs[self.msg_key(id)], rate) for id in ids}
+
+    def __getattr__(self, name):
+        return getattr(self.veh, name)
+    
+    def run(self):
+        while self.is_alive():
+            for rh in self.base_rates.values():
+                rh.set_rate(self.veh)
+            sleep(1)
+
+    def stop(self):
+        self._stop()
+        self.join()
+        for rh in self.base_rates.values():
+            rh.reset_rate(self.veh)
+
+    def __enter__(self):
+        self.start()
+        return self
+    
+    def __exit__(self):
+        self.stop()
+        

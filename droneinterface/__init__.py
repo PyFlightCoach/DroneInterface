@@ -2,7 +2,7 @@ from .messages import mavlink
 import logging
 from pathlib import Path
 import shutil
-from .connection import Connection
+from .connection import Connection, LastMessage
 
 class Base:
     def _msg(self, msg):

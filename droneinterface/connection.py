@@ -95,8 +95,9 @@ class LastMessage:
                 return self.last_message
 
     @property
-    def frequency(self):
-        return -1 / np.diff(self.times).mean()
+    def rate(self):
+        rate = int(-1 / np.nanmean(np.diff(self.times)))
+        return 0 if np.isnan(rate) else rate
 
     def all_messages(self) -> pd.DataFrame:
         return pd.read_csv(self.outfile).set_index("timestamp")
@@ -144,7 +145,7 @@ class Connection(Thread):
         return msg.get_type()
 
     def run(self):
-        while True:
+        while self.is_alive():
             try:
                 msg = self.master.recv_msg()
                 if msg is None:
