@@ -17,6 +17,7 @@ from functools import partial
 from io import StringIO
 import traceback
 import sys
+from collections import deque
 
 
 class LastMessage:
@@ -24,7 +25,7 @@ class LastMessage:
         self.id = id
         self.key = key
         self.last_message = None
-        self.times = [0,0,0]
+        self.times = deque(maxlen=3)
         self.n = n
         self.count = 0
         self.colmap = colmap 
@@ -77,9 +78,7 @@ class LastMessage:
 
     def receive_message(self, msg):        
         self.last_message = msg
-        self.times.insert(0, msg._timestamp)
-        self.times.pop()
-        
+        self.times.append(msg._timestamp)        
         self.count += 1
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
@@ -96,7 +95,7 @@ class LastMessage:
 
     @property
     def rate(self):
-        rate = int(-1 / np.nanmean(np.diff(self.times)))
+        rate = np.round(1 / np.mean(np.diff(self.times)), 1)
         return 0 if np.isnan(rate) else rate
 
     def all_messages(self) -> pd.DataFrame:
@@ -164,7 +163,6 @@ class Connection(Thread):
                 self.msg = self.msgs[key].receive_message(msg)
             except Exception as ex:
                 logging.debug(traceback.format_exc())
-                break
 
     @staticmethod    
     def create_folder(path: Path):
@@ -203,7 +201,10 @@ class Connection(Thread):
             
         return joined_log
 
-
+    def rates(self, keys: list=None):
+        if keys is None:
+            keys = self.msgs.keys()
+        return [self.msgs[k].rate if k in self.msgs else 0 for k in keys]
 
 
 

@@ -1,4 +1,4 @@
-from .messages import wrappers, AttitudeQuaternion, LocalPositionNED, ScaledIMU
+from .messages import wrappers, wrappermap, AttitudeQuaternion, LocalPositionNED, ScaledIMU
 from flightanalysis import State
 from typing import List, Any, Dict
 from geometry import Transformation
@@ -11,27 +11,21 @@ class Combinator:
     wrappers = dict()
     def __init__(self, vehicle) -> None:
         self.vehicle = vehicle
-
-    @property
-    def ids(self) -> List[int]:
-        return [wr.id for wr in self.wrappers.values()]
+        self.ids:List[int] = [wr.id for wr in self.__class__.wrappers.values()]
 
     def __init_subclass__(cls):
         combinators[cls.output.__name__] = cls  
 
-    def __call__(self) -> Any:
-        return None
-
     def _prepare(self, request: str):
-        return tuple(getattr(self.vehicle, f"{request}_{v}")() for v in self.wrappers.values())    
+        return tuple(getattr(self.vehicle, f"{request}_{v.__name__}")() for v in self.wrappers.values())    
    
 
 class StateMaker(Combinator):
     output = State
     wrappers = dict(
-        matt="AttitudeQuaternion",
-        mpos="LocalPositionNED",
-        macc="ScaledIMU"
+        matt=AttitudeQuaternion,
+        mpos=LocalPositionNED,
+        macc=ScaledIMU
     )
 
     def generate(self, request: str) -> State:
@@ -51,9 +45,6 @@ class StateMaker(Combinator):
             #racc = to_body()  # TODO no idea where to get this from
         )
     
-    def prepare_get(self):
-        pass
-
 def append_combinators(obj, reduced_ids: List[int] = None) -> None:    
     for cname, Combi in combinators.items():
         combi = Combi(vehicle=obj)

@@ -14,11 +14,10 @@ logging.info(vehicle.get_HomePosition().home)
 logging.info(vehicle.get_state())
 
 
-#subscribing to a higer rate for some messages
 
-end = time() + 10
+#subscribing to a higer rate for some messages
 with vehicle.subscribe(vehicle.state.ids, 10):
-    while time() < end:
-        pass
+    sleep(10)
+
 
 

@@ -6,7 +6,7 @@ from pymavlink import mavutil
 from . import mavlink
 from typing import Union, List
 from time import time, sleep
-from .messages import wrappers, mdefs
+from .messages import wrappers, mdefs, wrappermap
 from threading import Thread, Event
 import logging
 from .commands import command_map
@@ -18,7 +18,7 @@ from . import Base
 from . import Connection, LastMessage
 from pathlib import Path
 
-wrappermap ={wr.__name__.lower(): wr for wr in wrappers.values()}
+
 
 class TimeoutError(Exception):
         pass
@@ -26,6 +26,7 @@ class TimeoutError(Exception):
 
 class Vehicle(Base):
     def __init__(self, conn: Connection, sysid: int, compid:int, flightline: FlightLine=None) -> None:
+        super().__init__()
         self.conn: Connection = conn
         self.sysid = sysid
         self.compid = compid
@@ -131,11 +132,18 @@ class Vehicle(Base):
         msg = self.next_message(id, timeout)
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
+    
+    def subscribe(self, ids: List[int], rate: int):
+        return Observer(self, ids, rate)
         
 
 class RateHistory:
-    def __init__(self, last_message: LastMessage, desired_rate):
-        self.last_message = last_message
+    def __init__(self, veh, id, desired_rate):
+        self.key = veh.msg_key(id)
+        if not self.key in veh.conn.msgs:
+            veh.get_message(id)
+        self.last_message = veh.conn.msgs[veh.msg_key(id)]
+        
         self.initial_rate = self.current_rate()
         self.desired_rate = max(self.initial_rate, desired_rate)
                 
@@ -150,23 +158,25 @@ class RateHistory:
         veh.set_message_rate(self.last_message.id, self.initial_rate)
 
 
-class Observer(Base, Thread):
+class Observer(Thread):
     def __init__(self, veh: Vehicle, ids: List[int], rate: int) -> None:
+        super().__init__(daemon=True)
         self.veh = veh
         self.desired_rate = rate
-        self.base_rates = {id: RateHistory(self.conn.msgs[self.msg_key(id)], rate) for id in ids}
+        self.base_rates = {id: RateHistory(self.veh, id, rate) for id in ids}
+        
 
     def __getattr__(self, name):
         return getattr(self.veh, name)
     
     def run(self):
-        while self.is_alive():
+        while not self._is_stopped:
             for rh in self.base_rates.values():
                 rh.set_rate(self.veh)
             sleep(1)
 
     def stop(self):
-        self._stop()
+        self._is_stopped = True
         self.join()
         for rh in self.base_rates.values():
             rh.reset_rate(self.veh)
@@ -175,6 +185,6 @@ class Observer(Base, Thread):
         self.start()
         return self
     
-    def __exit__(self):
+    def __exit__(self, xc_type, exc_value, exc_tb):
         self.stop()
         

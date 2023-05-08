@@ -1,0 +1,1 @@
+timestamp,current_consumed,energy_consumed,temperature,voltages_0,voltages_1,voltages_2,voltages_3,voltages_4,voltages_5,voltages_6,voltages_7,voltages_8,voltages_9,current_battery,id,battery_function,type,battery_remaining,time_remaining,charge_state,voltages_ext_0,voltages_ext_1,voltages_ext_2,voltages_ext_3,mode,fault_bitmask
