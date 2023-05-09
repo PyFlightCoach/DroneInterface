@@ -68,7 +68,7 @@ def start_server(app: dash.Dash, **kwargs):
     server_process.start()
 
 
-def change_rates():
+def cycle_rates():
 	while True:
 		with vehicle.subscribe(vehicle.state.ids, 10):
 			sleep(5)
@@ -77,7 +77,7 @@ def change_rates():
 
 if __name__ == '__main__':
 
-	th = Thread(target=change_rates, daemon=True)
+	th = Thread(target=cycle_rates, daemon=True)
 	th.start()
 
 	start_server(app)
