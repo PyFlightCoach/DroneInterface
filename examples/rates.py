@@ -3,7 +3,7 @@ from collections import deque
 from droneinterface import Vehicle
 from time import time, sleep
 from random import random
-vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, 1, "log_tmp")
+
 import dash
 
 import dash_core_components as dcc
@@ -12,6 +12,10 @@ from dash.dependencies import Input, Output
 import multiprocessing
 from threading import Thread
 from json import dumps
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+
 app = dash.Dash()
 
 x = deque(maxlen = 20)
@@ -34,6 +38,10 @@ fig = go.FigureWidget()
 for _ in msgkeys:
 	fig.add_scatter()
 
+
+
+vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, 1, "log_tmp")
+
 start = time()
 
 @app.callback(Output('live-update-graph', 'figure'),
@@ -53,7 +61,7 @@ def update_fig(n):
 
 	return fig
 
-def start_server(app, **kwargs):
+def start_server(app: dash.Dash, **kwargs):
     def run():
         app.run_server(**kwargs)
     server_process = multiprocessing.Process(target=run)
@@ -74,4 +82,8 @@ if __name__ == '__main__':
 
 	start_server(app)
 
+	while True:
+		print(vehicle.conn.rates(msgkeys))
+		sleep(1)
+#	input("change rates running")
 pass
