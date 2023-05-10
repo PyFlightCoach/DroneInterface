@@ -10,7 +10,6 @@ class Base:
 
 from .vehicle import Vehicle
 
-
 def empty_tmpdir():
     shutil.rmtree(Path("logtmp"))
     Path("logtmp").mkdir()

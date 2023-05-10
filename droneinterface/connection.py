@@ -25,7 +25,8 @@ class LastMessage:
         self.id = id
         self.key = key
         self.last_message = None
-        self.times = deque(maxlen=3)
+        self.times = deque(maxlen=n)
+        self.last_time = None
         self.n = n
         self.count = 0
         self.colmap = colmap 
@@ -79,6 +80,7 @@ class LastMessage:
     def receive_message(self, msg):        
         self.last_message = msg
         self.times.append(msg._timestamp)        
+        self.last_time = time()
         self.count += 1
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
@@ -103,7 +105,7 @@ class LastMessage:
     
 
 class Connection(Thread):
-    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=3):
+    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=10):
         super().__init__(daemon=True)
         self.master = master
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
@@ -156,8 +158,10 @@ class Connection(Thread):
                 
                 if not key in self.msgs:
                     self.msgs[key] = self.builder(
-                        key, msg, 
-                        (self.outdir / f"{key}.csv") if self.check_store(key) else None
+                        key, 
+                        msg, 
+                        (self.outdir / f"{key}.csv") if self.check_store(key) else None,
+                        self.n
                     )
                 
                 self.msg = self.msgs[key].receive_message(msg)

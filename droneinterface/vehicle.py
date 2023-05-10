@@ -24,6 +24,9 @@ class TimeoutError(Exception):
         pass
 
 
+LastMessage.wrapper = lambda self : wrappers[self.id].parse(self.last_message)
+
+
 class Vehicle(Base):
     def __init__(self, conn: Connection, sysid: int, compid:int, flightline: FlightLine=None) -> None:
         super().__init__()
@@ -41,11 +44,12 @@ class Vehicle(Base):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, n=2, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
-            Connection.create_folder(outdir)
+            Connection.create_folder(outdir),
+            n
         )
         conn.start()
         _veh = Vehicle(
@@ -53,7 +57,7 @@ class Vehicle(Base):
             sysid, compid
         ).wait_for_boot()
         
-        origin = _veh.get_GlobalOrigin().position
+        origin = _veh.get_GlobalOrigin(None, None).position
 
         if box is None:
             box = Box("home", origin, 0)
@@ -73,9 +77,9 @@ class Vehicle(Base):
             _spl = name.split("_")
             if _spl[1] in wrappermap:
                 if _spl[0] == "last":
-                    return self.last_message(wrappermap[_spl[1]].id)
+                    return lambda *args, **kwargs: self.last_message(wrappermap[_spl[1]].id, *args, **kwargs)
                 elif _spl[0] == "get":
-                    return lambda timeout=0.5: self.get_message(wrappermap[_spl[1]].id, timeout)
+                    return lambda *args, **kwargs: self.get_message(wrappermap[_spl[1]].id, *args, **kwargs)
         if name in command_map:
             return lambda *args : self.send_command(*command_map[name](*args))
         raise AttributeError(f"{name} not found in message wrappers or command map")
@@ -84,9 +88,9 @@ class Vehicle(Base):
         logging.info(self._msg("Waiting for boot"))
 
         tests = {
-            "IMU initialised": lambda : self.last_heartbeat.initialised,
-            "GPS fix": lambda : self.last_GPSRawInt.fix_type > 2,
-            "EKF happy": lambda : self.last_EKFStatus.is_good
+            "IMU initialised": lambda : self.last_heartbeat().initialised,
+            "GPS fix": lambda : self.last_GPSRawInt().fix_type > 2,
+            "EKF happy": lambda : self.last_EKFStatus().is_good
         }
         for name, test in tests.items():
             while True:
@@ -115,24 +119,53 @@ class Vehicle(Base):
     def msg_key(self, id):
         return f"{self.sysid}_{self.compid}_{id}"
 
-    def last_message(self, id):
+    def _last_message(self, id, max_age = None):
+        """return the last message if it exists and it is less old than max_age. otherwise return None."""
         key = self.msg_key(id)
-        if id in wrappers and key in self.conn.msgs:
-            return wrappers[id].parse(self.conn.msgs[key].last_message)
+        if key in self.conn.msgs:
+            lm = self.conn.msgs[key]
+            if max_age is None:
+                return lm
+            if lm.last_time + max_age > time():
+                return lm
     
-    def next_message(self, id, timeout=0.2):
-        end = time() + timeout
+    def last_message(self, id, max_age = None):
+        return self._last_message(id, max_age).wrapper()
+
+    def _next_message(self, id, timeout=0.2):
+        """Wait timeout seconds for the next message"""
+        end = time() + (1e3 if timeout is None else timeout)
         while time() < end:
             msg = self.conn.msg
             if msg.id == id:
-                return wrappers[id].parse(msg.last_message)
+                return msg
+        raise TimeoutError(f"Timeout after {timeout} seconds waiting for {wrappers[id].__name__}")
+    
+    def next_message(self, id, timeout=0.2):
+        return self._next_message(id, timeout).wrapper()
 
-    def get_message(self, id, timeout=0.2):
-        self.request_message(id)
-        msg = self.next_message(id, timeout)
+    def _get_message(self, id, timeout=0.2, max_age=0.1):
+        """get a message. 
+        first try younger than max_age, 
+        then wait if its likely to turn up in less than timout, 
+        then request and wait timeout"""
+        lm = self._last_message(id, max_age)
+        if not lm is None:
+            return lm
+        lm = self._last_message(id, None)
+        if lm is None or timeout is None:
+            self.request_message(id)
+        else:
+            if lm.rate < (1/timeout):
+                self.request_message(id)          
+
+        msg = self._next_message(id, timeout)
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
+    def get_message(self, id, timeout=0.2, max_age=0.1):
+        return self._get_message(id, timeout, max_age).wrapper()
+
     def subscribe(self, ids: List[int], rate: int):
         return Observer(self, ids, rate)
         
@@ -140,22 +173,21 @@ class Vehicle(Base):
 class RateHistory:
     def __init__(self, veh, id, desired_rate):
         self.key = veh.msg_key(id)
-        if not self.key in veh.conn.msgs:
-            veh.get_message(id)
-        self.last_message = veh.conn.msgs[veh.msg_key(id)]
+            
+        self._last_message = veh._get_message(id, 0.2, None)
         
-        self.initial_rate = self.current_rate()
+        self.initial_rate = max(self.current_rate(), 1.0)
         self.desired_rate = max(self.initial_rate, desired_rate)
                 
     def current_rate(self):
-        return self.last_message.rate
+        return self._last_message.rate
 
     def set_rate(self, veh: Vehicle):
         if self.current_rate() < self.desired_rate:
-            veh.set_message_rate(self.last_message.id, self.desired_rate)
+            veh.set_message_rate(self._last_message.id, self.desired_rate)
 
     def reset_rate(self, veh: Vehicle):
-        veh.set_message_rate(self.last_message.id, self.initial_rate)
+        veh.set_message_rate(self._last_message.id, self.initial_rate)
 
 
 class Observer(Thread):

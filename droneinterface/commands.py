@@ -38,7 +38,7 @@ def request_message(id: int):
 
 @command
 def set_message_rate(id: int, rate: float):
-    return (mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, id, rate)
+    return (mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, id, (int(1e6) / rate) if rate > 0 else -1)
 
 @command
 def set_mode(mode: int):
