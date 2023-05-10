@@ -17,6 +17,9 @@ logging.info(vehicle.get_state())
 msgkeys = ["1_1_0", "1_1_26", "1_1_31", "1_1_32"]
 
 
+
+
+
 def print_rates(keys, duration=5, rate=2):
     end = time() + duration
     while time() < end:
@@ -26,23 +29,11 @@ def print_rates(keys, duration=5, rate=2):
 
 print_rates(msgkeys)
 
-pass
-#
 ##subscribing to a higer rate for some messages
-observer =  vehicle.subscribe(vehicle.state.ids, 10)
+with vehicle.subscribe(vehicle.state.ids, 10):
+    print_rates(msgkeys)
 
 
-observer.start()
-
-logging.info("started observer")
-
-print_rates(msgkeys)
-
-
-observer.stop()
-
-logging.info("stopped observer")
-#
 print_rates(msgkeys)
 
 

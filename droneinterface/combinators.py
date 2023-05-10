@@ -3,7 +3,7 @@ from flightanalysis import State
 from typing import List, Any, Dict
 from geometry import Transformation
 from flightanalysis.base import Time
-
+from threading import Thread
 
 combinators = {}
 
@@ -16,8 +16,10 @@ class Combinator:
     def __init_subclass__(cls):
         combinators[cls.output.__name__] = cls  
 
-    def _prepare(self, request: str):
-        return tuple(getattr(self.vehicle, f"{request}_{v.__name__}")() for v in self.wrappers.values())    
+    def _prepare(self, request: str, *args, **kwargs):       
+        return tuple(self.vehicle.async_messages(request, self.ids, *args, **kwargs))
+
+#        return tuple(getattr(self.vehicle, f"{request}_{v.__name__}")() for v in self.wrappers.values())    
    
 
 class StateMaker(Combinator):
@@ -28,8 +30,8 @@ class StateMaker(Combinator):
         macc=ScaledIMU
     )
 
-    def generate(self, request: str) -> State:
-        matt, mpos, macc=self._prepare(request)
+    def generate(self, request: str, *args, **kwargs) -> State:
+        matt, mpos, macc=self._prepare(request, *args, **kwargs)
         att = self.vehicle.flightline.transform_to.apply(matt.att)
         to_body = lambda p : att.inverse().transform_point(self.vehicle.flightline.transform_to.apply(p))
         
@@ -50,6 +52,6 @@ def append_combinators(obj, reduced_ids: List[int] = None) -> None:
         combi = Combi(vehicle=obj)
         if reduced_ids is None or all([id in reduced_ids for id in combi.ids]):
             setattr(obj, cname.lower(), combi)
-            setattr(obj, f"last_{cname.lower()}", lambda: combi.generate("last"))
-            setattr(obj, f"get_{cname.lower()}", lambda: combi.generate("get"))
+            setattr(obj, f"last_{cname.lower()}", lambda *args, **kwargs: combi.generate("last", *args, **kwargs))
+            setattr(obj, f"get_{cname.lower()}", lambda *args, **kwargs: combi.generate("get", *args, **kwargs))
 

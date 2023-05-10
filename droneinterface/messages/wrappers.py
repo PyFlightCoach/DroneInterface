@@ -153,9 +153,12 @@ BatteryStatus = wrapper_factory(
     "BatteryStatus",
     mavlink.MAVLINK_MSG_ID_BATTERY_STATUS,
     [
-        ("voltage", lambda v: v[0] / 1000, ["voltages"], lambda v : [v * 1000] + [0 for _ in range(9)]),
-        ("current", lambda v: v / 10, ["current_battery"], lambda v : v * 10),
-    ]
+        ("voltage", lambda v: v, ["voltages"], lambda v: v[0] / 1000,  lambda v : [v * 1000] + [0 for _ in range(9)]),
+        ("current", lambda v: v, ["current_battery"], lambda v: v/10, lambda v : v * 10),
+    ],
+    dict(
+        watts = property(lambda self: self.voltage * self.current)
+    )
 )
 
 

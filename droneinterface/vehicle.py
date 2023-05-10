@@ -2,9 +2,10 @@
 If wrappers do not exist for the requested message then the original message object is returned
 """
 from __future__ import annotations
+from collections.abc import Callable, Iterable, Mapping
 from pymavlink import mavutil
 from . import mavlink
-from typing import Union, List
+from typing import Any, Union, List
 from time import time, sleep
 from .messages import wrappers, mdefs, wrappermap
 from threading import Thread, Event
@@ -17,14 +18,11 @@ import inspect
 from . import Base
 from . import Connection, LastMessage
 from pathlib import Path
-
+from functools import partial
 
 
 class TimeoutError(Exception):
         pass
-
-
-LastMessage.wrapper = lambda self : wrappers[self.id].parse(self.last_message)
 
 
 class Vehicle(Base):
@@ -48,7 +46,7 @@ class Vehicle(Base):
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
-            Connection.create_folder(outdir),
+            None if outdir is None else Connection.create_folder(outdir),
             n
         )
         conn.start()
@@ -76,10 +74,9 @@ class Vehicle(Base):
         if "_" in name:
             _spl = name.split("_")
             if _spl[1] in wrappermap:
-                if _spl[0] == "last":
-                    return lambda *args, **kwargs: self.last_message(wrappermap[_spl[1]].id, *args, **kwargs)
-                elif _spl[0] == "get":
-                    return lambda *args, **kwargs: self.get_message(wrappermap[_spl[1]].id, *args, **kwargs)
+                if _spl[0] in ["last", "get", "next", "_last", "_get", "_next"]:
+                    return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)
+                
         if name in command_map:
             return lambda *args : self.send_command(*command_map[name](*args))
         raise AttributeError(f"{name} not found in message wrappers or command map")
@@ -163,18 +160,38 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
-    def get_message(self, id, timeout=0.2, max_age=0.1):
+    def get_message(self, id, timeout=0.5, max_age=0.1):
         return self._get_message(id, timeout, max_age).wrapper()
 
     def subscribe(self, ids: List[int], rate: int):
         return Observer(self, ids, rate)
+    
+    def async_messages(self, method: str, ids, *args, **kwargs):
+
+        ths = [MessageWaiter(getattr(self, f"{method}_message"), id, *args, **kwargs) for id in ids]
         
+        while any([th.is_alive() for th in ths]):
+            pass
+        return [th.result for th in ths]
+
+
+class MessageWaiter(Thread):
+    def __init__(self, target, *args, **kwargs) -> None:
+        super().__init__(daemon=True)
+        self.target = partial(target, *args, **kwargs)
+        self.result = None
+        self.start()
+
+    def run(self):
+        self.result = self.target()
+
+
 
 class RateHistory:
     def __init__(self, veh, id, desired_rate):
         self.key = veh.msg_key(id)
             
-        self._last_message = veh._get_message(id, 0.2, None)
+        self._last_message = veh._get_message(id, 2.0, None)
         
         self.initial_rate = max(self.current_rate(), 1.0)
         self.desired_rate = max(self.initial_rate, desired_rate)

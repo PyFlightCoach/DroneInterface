@@ -18,6 +18,7 @@ from io import StringIO
 import traceback
 import sys
 from collections import deque
+from .messages import wrappers, mdefs, wrappermap
 
 
 class LastMessage:
@@ -103,6 +104,9 @@ class LastMessage:
     def all_messages(self) -> pd.DataFrame:
         return pd.read_csv(self.outfile).set_index("timestamp")
     
+
+    def wrapper(self):
+        return wrappers[self.id].parse(self.last_message)
 
 class Connection(Thread):
     def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=10):

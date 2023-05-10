@@ -51,7 +51,7 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
     
     @classmethod
     def parser(cls, msg: MsgCls):
-        assert msg.id == msg_id    
+        assert msg.__class__.id == msg_id    
         return cls(msg._timestamp, *[pl.read(msg) for pl in links])
     
     def encoder(self) -> MsgCls:
