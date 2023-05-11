@@ -14,8 +14,7 @@ logging.info(vehicle.get_GlobalOrigin(5, None).position)
 #getting a pyflightcoach state object (combines 3 mavlink messages):
 logging.info(vehicle.get_state())
 
-msgkeys = ["1_1_0", "1_1_26", "1_1_31", "1_1_32"]
-
+ids = [0, 26, 31, 32]
 
 
 
@@ -27,14 +26,14 @@ def print_rates(keys, duration=5, rate=2):
         sleep(1/rate)
 
 
-print_rates(msgkeys)
+print_rates(ids)
 
 ##subscribing to a higer rate for some messages
 with vehicle.subscribe(vehicle.state.ids, 10):
-    print_rates(msgkeys)
+    print_rates(ids)
 
 
-print_rates(msgkeys)
+print_rates(ids)
 
 
 

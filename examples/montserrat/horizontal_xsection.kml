@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+<Placemark>
+  <name>WP1</name>
+  <Point>
+    <coordinates>-62.2262500,16.7128600</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP2</name>
+  <Point>
+    <coordinates>-62.2262500,16.7128600</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP3</name>
+  <Point>
+    <coordinates>-62.2221851,16.7133875</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP4</name>
+  <Point>
+    <coordinates>-62.2221851,16.7133875</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP5</name>
+  <Point>
+    <coordinates>-62.2005697,16.6963230</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP6</name>
+  <Point>
+    <coordinates>-62.2056553,16.7119885</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP7</name>
+  <Point>
+    <coordinates>-62.2038639,16.7125219</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP8</name>
+  <Point>
+    <coordinates>-62.1987785,16.6968564</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP9</name>
+  <Point>
+    <coordinates>-62.1969873,16.6973898</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP10</name>
+  <Point>
+    <coordinates>-62.2020726,16.7130553</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP11</name>
+  <Point>
+    <coordinates>-62.2002813,16.7135886</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP12</name>
+  <Point>
+    <coordinates>-62.1951962,16.6979231</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP13</name>
+  <Point>
+    <coordinates>-62.1934050,16.6984565</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP14</name>
+  <Point>
+    <coordinates>-62.1984900,16.7141220</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP15</name>
+  <Point>
+    <coordinates>-62.1966987,16.7146554</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP16</name>
+  <Point>
+    <coordinates>-62.1916138,16.6989899</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP17</name>
+  <Point>
+    <coordinates>-62.1898227,16.6995232</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP18</name>
+  <Point>
+    <coordinates>-62.1949074,16.7151887</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP19</name>
+  <Point>
+    <coordinates>-62.1931161,16.7157221</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP20</name>
+  <Point>
+    <coordinates>-62.1880315,16.7000566</coordinates>
+  </Point>
+</Placemark>
+<Placemark>
+  <name>WP21</name>
+  <Point>
+    <coordinates>-62.2243577,16.7128840</coordinates>
+  </Point>
+</Placemark>
+<Folder>
+  <name>Waypoints</name>
+  <Placemark>
+    <name>Waypoints</name>
+    <LineString>
+      <extrude>0</extrude>
+      <altitudeMode>absolute</altitudeMode>
+      <coordinates>
+        -62.2262500,16.7128600,0.0
+        -62.2262500,16.7128600,15.0
+        -62.2221851,16.7133875,100.0
+        -62.2221851,16.7133875,100.0
+        -62.2005697,16.6963230,600.0
+        -62.2056553,16.7119885,600.0
+        -62.2038639,16.7125219,600.0
+        -62.1987785,16.6968564,600.0
+        -62.1969873,16.6973898,600.0
+        -62.2020726,16.7130553,600.0
+        -62.2002813,16.7135886,600.0
+        -62.1951962,16.6979231,600.0
+        -62.1934050,16.6984565,600.0
+        -62.1984900,16.7141220,600.0
+        -62.1966987,16.7146554,600.0
+        -62.1916138,16.6989899,600.0
+        -62.1898227,16.6995232,600.0
+        -62.1949074,16.7151887,600.0
+        -62.1931161,16.7157221,600.0
+        -62.1880315,16.7000566,600.0
+        -62.2243577,16.7128840,100.0
+      </coordinates>
+    </LineString>
+  </Placemark>
+</Folder>
+  </Document>
+</kml>

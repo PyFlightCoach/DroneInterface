@@ -107,12 +107,12 @@ ScaledIMU = wrapper_factory(
 
 PositionTargetGlobal = wrapper_factory(
     "PositionTargetGlobal",
-    mavlink.MAVLINK_MSG_ID_SET_POSITION_TARGET_GLOBAL_INT,
+    mavlink.MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT,
     [
-        ("position", GPS, ["lat", "lon"], lambda v : v/1e7, lambda v : v*1e7),
+        ("position", GPS, ["lat_int", "lon_int"], lambda v : v/1e7, lambda v : v*1e7),
         ("alt", lambda v : v, ["alt"], lambda v : v/1e3, lambda v : v*1e3),
         ("velocity", Point, ["vx", "vy", "vz"]),
-        ("acceleration", Point, ["ax", "ay", "az"])
+        ("acceleration", Point, ["afx", "afy", "afz"])
     ]
 )
 
@@ -122,7 +122,7 @@ PositionTargetLocal = wrapper_factory(
     [
         ("position", Point, ["x", "y", "z"]),
         ("velocity", Point, ["vx", "vy", "vz"]),
-        ("acceleration", Point, ["ax", "ay", "az"])
+        ("acceleration", Point, ["afx", "afy", "afz"])
     ]
 )
 
@@ -154,7 +154,7 @@ BatteryStatus = wrapper_factory(
     mavlink.MAVLINK_MSG_ID_BATTERY_STATUS,
     [
         ("voltage", lambda v: v, ["voltages"], lambda v: v[0] / 1000,  lambda v : [v * 1000] + [0 for _ in range(9)]),
-        ("current", lambda v: v, ["current_battery"], lambda v: v/10, lambda v : v * 10),
+        ("current", lambda v: v, ["current_battery"], lambda v: v/100, lambda v : v * 100),
     ],
     dict(
         watts = property(lambda self: self.voltage * self.current)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pymavlink import mavutil, DFReader
-from typing import Union, List, Dict, IO
+from typing import Union, List, Dict
 from time import time, sleep
 from datetime import datetime
 from threading import Thread, Event
@@ -22,25 +22,28 @@ from .messages import wrappers, mdefs, wrappermap
 
 
 class LastMessage:
-    def __init__(self, id, key, colmap: dict, rev_colmap: dict, outfile: Path=None, n=3):
+    def __init__(self, id, colmap: dict, rev_colmap: dict, outfile: Path=None, n=3):
         self.id = id
-        self.key = key
-        self.last_message = None
-        self.times = deque(maxlen=n)
+        self.history = deque(maxlen=n)
         self.last_time = None
-        self.n = n
-        self.count = 0
         self.colmap = colmap 
         self.rev_colmap = rev_colmap
         self.outfile = outfile
         if self.outfile is not None:
-            
             with open(self.outfile, "w") as f:
                 print(",".join(list(self.colmap.keys())), file=f)
             self.io = open(self.outfile, "a")
 
+    @property
+    def times(self) -> List[float]:
+        return [m._timestamp for m in self.history]
+
+    @property
+    def last_message(self):
+        return self.history[-1]
+
     @staticmethod
-    def build_mavlink(key, msg, outfile: Path=None, n=3):
+    def build_mavlink(msg, outfile: Path=None, n=3):
         colmap = {"timestamp": lambda msg: msg._timestamp}
         rev_colmap = {}
         for fname, l in zip(msg.__class__.ordered_fieldnames, msg.__class__.lengths):
@@ -54,7 +57,6 @@ class LastMessage:
         
         return LastMessage(
             msg.__class__.id, 
-            key, 
             colmap, 
             rev_colmap, 
             outfile, 
@@ -62,7 +64,7 @@ class LastMessage:
         )
 
     @staticmethod
-    def build_bin(key, msg, outfile: Path=None, n=3):
+    def build_bin(msg, outfile: Path=None, n=3):
         colmap = {"timestamp": lambda msg: msg._timestamp}
         rev_colmap = dict()
         for fname in msg._fieldnames:
@@ -71,7 +73,6 @@ class LastMessage:
 
         return LastMessage(
             msg.get_type(), 
-            key, 
             colmap, 
             rev_colmap, 
             outfile, 
@@ -79,22 +80,11 @@ class LastMessage:
         )
 
     def receive_message(self, msg):        
-        self.last_message = msg
-        self.times.append(msg._timestamp)        
+        self.history.append(msg)
         self.last_time = time()
-        self.count += 1
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
             print(",".join(data), file=self.io)
-
-        return self
-
-    def next_message(self, timeout=2):
-        t0 = self._times[0]
-        end = time() + timeout
-        while time() < end:
-            if self.times[0] > t0:
-                return self.last_message
 
     @property
     def rate(self):
@@ -103,24 +93,24 @@ class LastMessage:
 
     def all_messages(self) -> pd.DataFrame:
         return pd.read_csv(self.outfile).set_index("timestamp")
-    
 
-    def wrapper(self):
-        return wrappers[self.id].parse(self.last_message)
+    def wrapper(self, i=-1):
+        return wrappers[self.id].parse(self.history[i])
+
 
 class Connection(Thread):
     def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=10):
         super().__init__(daemon=True)
         self.master = master
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
-        if not self.outdir.exists():
-            self.outdir.mkdir(exist_ok=True)
-        self.msgs: Dict[str: LastMessage] = {}
+        self.outdir.mkdir(exist_ok=True)
+        
+        self.msgs: Dict[int: Dict[Union[int, str]: LastMessage]] = {}   #first key system id, second key message id
         self.n = n
 
         self.store_messages = store_messages
         if isinstance(self.store_messages, list):
-            self.check_store = lambda key: key in self.store_messages
+            self.check_store = lambda id: id in self.store_messages
         elif self.store_messages == "all":
             self.check_store = lambda msgid: True
         else:
@@ -129,11 +119,14 @@ class Connection(Thread):
         self.source = "DF" if isinstance(master, DFReader.DFReader_binary) else "MAV"
         if self.source == "DF":
             self.builder = LastMessage.build_bin
-            self._generate_key = self._generate_bin_key
-            
+            self._system_from_message = lambda msg: 1
+            self._id_from_message = lambda msg : msg.get_type()            
         else:
             self.builder = LastMessage.build_mavlink
-            self._generate_key = self._generate_mavlink_key
+            self._system_from_message = lambda msg : msg.get_srcSystem()
+            self._id_from_message = lambda msg : msg.__class__.id
+
+        self.waiters = {}
 
     def __str__(self):
         return f"Connection({self.master.address})"
@@ -142,12 +135,6 @@ class Connection(Thread):
         if name in self.msgs:
             return self.msgs[name]
         raise AttributeError(f"{name} not found in {self}")
-
-    def _generate_mavlink_key(self, msg):
-        return f"{msg.get_srcSystem()}_{msg.get_srcComponent()}_{msg.__class__.id}"
-
-    def _generate_bin_key(self, msg):
-        return msg.get_type()
 
     def run(self):
         while self.is_alive():
@@ -158,23 +145,46 @@ class Connection(Thread):
                         break
                     else:
                         continue
-                key = self._generate_key(msg)
+                system_id = self._system_from_message(msg)
+                if not system_id in self.msgs:
+                    self.msgs[system_id] = {}
+                if not system_id in self.waiters:
+                    self.waiters[system_id] = {}
+                msg_index = self.msgs[system_id]
                 
-                if not key in self.msgs:
-                    self.msgs[key] = self.builder(
-                        key, 
+                msg_id = self._id_from_message(msg)
+                if not msg_id in msg_index:
+                    msg_index[msg_id] = self.builder(
                         msg, 
-                        (self.outdir / f"{key}.csv") if self.check_store(key) else None,
+                        (self.outdir / f"{system_id}_{msg_id}.csv") if self.check_store(msg_id) else None,
                         self.n
                     )
                 
-                self.msg = self.msgs[key].receive_message(msg)
+                msg_index[msg_id].receive_message(msg)
+
+                #the events would be better as part of the LastMessage instances, 
+                # but cant be as the msg_index dict is not pre-populated
+                waiter_index = self.waiters[system_id]
+                if msg_id in waiter_index:
+                    waiter_index[msg_id].set()
+                
             except Exception as ex:
-                logging.debug(traceback.format_exc())
+                logging.debug(traceback.format_exc(ex))
+
+    def add_waiter(self, systemid, msgid) -> Event:
+        if not systemid in self.waiters:
+            self.waiters[systemid] = {}
+        waiter_index = self.waiters[systemid]
+        if msgid in waiter_index:
+            waiter_index[msgid].clear()
+        else:
+            waiter_index[msgid] = Event()
+        return waiter_index[msgid]
+
 
     @staticmethod    
     def create_folder(path: Path):
-        outdir = Path(path) / f"Conn_{datetime.now():%Y_%M_%d_%H_%M_%S}"
+        outdir = Path(path) / f"Conn_{datetime.now():%Y_%m_%d_%H_%M_%S}"
         outdir.mkdir()
         return outdir
 
@@ -190,29 +200,25 @@ class Connection(Thread):
 
         return conn.join_messages(store_messages)
 
-    def join_messages(self, keys: list) -> pd.DataFrame:
+    def join_messages(self, ids: list, systemid:int=1) -> pd.DataFrame:
         keys = [k for k in keys if k in self.msgs.keys()]
 
-        joined_log = self.msgs[keys[0]].all_messages()
-        joined_log.columns = [f"{keys[0]}_{c}" for c in joined_log.columns]
-        for k in keys[1:]:
-            if k=='PARM':
+        joined_log = self.msgs[systemid][ids[0]].all_messages()
+        joined_log.columns = [f"{ids}_{c}" for c in joined_log.columns]
+        for id in ids[1:]:
+            if id=='PARM':
                 continue
-            df = self.msgs[k].all_messages()
-            df.columns = [f"{k}_{c}" for c in df.columns]
+            df = self.msgs[systemid][id].all_messages()
+            df.columns = [f"{id}_{c}" for c in df.columns]
 
-            joined_log = pd.merge_asof(
-                joined_log, 
-                df, 
-                on='timestamp'
-            )
+            joined_log = pd.merge_asof(joined_log, df, on='timestamp')
             
         return joined_log
 
-    def rates(self, keys: list=None):
-        if keys is None:
-            keys = self.msgs.keys()
-        return [self.msgs[k].rate if k in self.msgs else 0 for k in keys]
+    def rates(self, ids: list=None, systemid=1):
+        if ids is None:
+            ids = self.msgs[systemid].keys()
+        return [self.msgs[systemid][id].rate if id in self.msgs[systemid] else 0 for id in ids]
 
 
 

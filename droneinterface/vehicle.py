@@ -31,6 +31,9 @@ class Vehicle(Base):
         self.conn: Connection = conn
         self.sysid = sysid
         self.compid = compid
+        if not self.sysid in self.conn.msgs:
+            self.conn.msgs[self.sysid] = {}
+        self.msgs = self.conn.msgs[self.sysid]
         if flightline is None:
             self.flightline = FlightLine.home()
         else:
@@ -113,35 +116,23 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Sending message {str(msg)}"))
         self.conn.master.mav.send(msg if isinstance(msg, mavlink.MAVLink_message) else msg.encoder())
     
-    def msg_key(self, id):
-        return f"{self.sysid}_{self.compid}_{id}"
-
-    def _last_message(self, id, max_age = None):
+    def _last_message(self, id, max_age=None) -> LastMessage:
         """return the last message if it exists and it is less old than max_age. otherwise return None."""
-        key = self.msg_key(id)
-        if key in self.conn.msgs:
-            lm = self.conn.msgs[key]
+        if id in self.msgs:
+            lm = self.msgs[id]
             if max_age is None:
                 return lm
             if lm.last_time + max_age > time():
                 return lm
-    
-    def last_message(self, id, max_age = None):
-        return self._last_message(id, max_age).wrapper()
 
-    def _next_message(self, id, timeout=0.2):
+    def _next_message(self, id, timeout=0.2) -> LastMessage:
         """Wait timeout seconds for the next message"""
-        end = time() + (1e3 if timeout is None else timeout)
-        while time() < end:
-            msg = self.conn.msg
-            if msg.id == id:
-                return msg
-        raise TimeoutError(f"Timeout after {timeout} seconds waiting for {wrappers[id].__name__}")
-    
-    def next_message(self, id, timeout=0.2):
-        return self._next_message(id, timeout).wrapper()
+        event = self.conn.add_waiter(self.sysid, id)
+        event.wait(timeout)
 
-    def _get_message(self, id, timeout=0.2, max_age=0.1):
+        return self._last_message(id, None)
+    
+    def _get_message(self, id, timeout=0.2, max_age=0.1) -> LastMessage:
         """get a message. 
         first try younger than max_age, 
         then wait if its likely to turn up in less than timout, 
@@ -149,7 +140,8 @@ class Vehicle(Base):
         lm = self._last_message(id, max_age)
         if not lm is None:
             return lm
-        lm = self._last_message(id, None)
+        elif not max_age is None:
+            lm = self._last_message(id, None)
         if lm is None or timeout is None:
             self.request_message(id)
         else:
@@ -160,8 +152,13 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
-    def get_message(self, id, timeout=0.5, max_age=0.1):
-        return self._get_message(id, timeout, max_age).wrapper()
+    def _message(self, method: str, id, *args, **kwargs):
+        msg = getattr(self, f"_{method}_message")(id, *args, **kwargs)
+        return msg.wrapper() if not msg is None else None
+
+    last_message = lambda self, id, *args, **kwargs: self._message("last", id, *args, **kwargs)
+    next_message = lambda self, id, *args, **kwargs: self._message("next", id, *args, **kwargs)
+    get_message = lambda self, id, *args, **kwargs: self._message("get", id, *args, **kwargs)
 
     def subscribe(self, ids: List[int], rate: int):
         return Observer(self, ids, rate)
@@ -189,7 +186,7 @@ class MessageWaiter(Thread):
 
 class RateHistory:
     def __init__(self, veh, id, desired_rate):
-        self.key = veh.msg_key(id)
+        self.id = id
             
         self._last_message = veh._get_message(id, 2.0, None)
         
