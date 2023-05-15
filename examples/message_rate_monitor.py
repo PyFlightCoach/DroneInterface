@@ -11,7 +11,7 @@ vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, 1, "log_tmp")
 
 
 def print_rates():
-    print(dumps({m.last_message.__class__.__name__: m.rate for m in vehicle.conn.msgs.values()}, indent=2))
+    print(dumps({m.last_message.__class__.__name__: m.rate for m in vehicle.conn.msgs[1].values()}, indent=2))
     
 
 while True:

@@ -21,7 +21,7 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 
 
-msgkeys = ["1_1_0", "1_1_26", "1_1_31", "1_1_32"]
+msgkeys = [0, 26, 31, 32]
 
 
 start = time()
@@ -92,7 +92,7 @@ def update_traces():
 
 def cycle_rates():
 	while True:
-		sleep(20)
+		sleep(5)
 		with vehicle.subscribe(vehicle.state.ids, 10):
 			sleep(5)
 		

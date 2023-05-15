@@ -39,7 +39,8 @@ class Vehicle(Base):
         else:
             self.flightline = flightline
         append_combinators(self)
-
+        self.wait_for_boot()
+        self.origin  = self.get_GlobalOrigin(None, None).position
 
     def __str__(self):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
@@ -58,12 +59,10 @@ class Vehicle(Base):
             sysid, compid
         ).wait_for_boot()
         
-        origin = _veh.get_GlobalOrigin(None, None).position
-
         if box is None:
-            box = Box("home", origin, 0)
+            box = Box("home", _veh.origin, 0)
 
-        return _veh.update(flightline=FlightLine.from_box(box, origin))
+        return _veh.update(flightline=FlightLine.from_box(box, _veh.origin))
 
     def update(self, **kwargs) -> Vehicle:
         args = inspect.getfullargspec(self.__class__.__init__)[0]

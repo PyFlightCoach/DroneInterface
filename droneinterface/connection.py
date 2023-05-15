@@ -140,7 +140,7 @@ class Connection(Thread):
         while self.is_alive():
             try:
                 msg = self.master.recv_msg()
-                if msg is None:
+                if msg is None or isinstance(msg, mavlink.MAVLink_bad_data):
                     if self.source == "DF":
                         break
                     else:

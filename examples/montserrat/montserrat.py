@@ -7,7 +7,7 @@ import sys
 from json import dumps
 import traceback
 import os
-from geometry import GPS
+from geometry import GPS, PZ
 import sys
 from pathlib import Path
 
@@ -18,26 +18,36 @@ logging.basicConfig(level=logging.INFO)
 vehicle = Vehicle.connect('tcp:127.0.0.1:5763', 1, outdir = Path("log_tmp"))
 
 
-while True:
-    logging.info("waiting to reach the next waypoint")
-    last_wp = vehicle.next_MissionItemReached(None)
-    logging.info(f"passed waypoint {last_wp.seq}")
+#while True:
+    #logging.info("waiting to reach the next waypoint")
+    #last_wp = vehicle.next_MissionItemReached(None)
+    #logging.info(f"passed waypoint {last_wp.seq}")
+    #
+    #next_wp = vehicle.get_missionCurrent()
+    #logging.info(f"next waypoint = {next_wp.seq}")
+    #target = vehicle.get_PositionTargetGlobal(None, 0.0)
+    #logging.info(f"next target: \n {str(target.position)}")
     
-    next_wp = vehicle.get_missionCurrent()
-    logging.info(f"next waypoint = {next_wp.seq}")
-    target = vehicle.get_PositionTargetGlobal(None, 0.0)
+last_wp = 0
+with vehicle.subscribe(
+    vehicle.state.ids + [168, 147, 74], 
+    10
+):
+    while True:
+        next_wp = vehicle.last_missionCurrent().seq
+        if next_wp > last_wp or last_wp == 0:
+            last_wp = next_wp
+            target = vehicle.get_PositionTargetGlobal(None, 0.0)
+            logging.info(f"reached wp {last_wp}")
+        st = vehicle.get_state()
 
 
-    logging.info(f"next target: \n {str(target.position)}")
-    
-    
 
-    
-    #with vehicle.subscribe(
-    #    vehicle.state.ids + [168, 147, 74], 
-    #    10
-    #):
-    #    pass
+        path = st.pos - (target.position - vehicle.origin) + PZ(target.alt)
+        logging.info(f"path to next wp: {path}")
+        
+
+
 
 #MAVLink_mission_current_message
 #seq 0
