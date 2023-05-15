@@ -110,7 +110,7 @@ PositionTargetGlobal = wrapper_factory(
     mavlink.MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT,
     [
         ("position", GPS, ["lat_int", "lon_int"], lambda v : v/1e7, lambda v : v*1e7),
-        ("alt", lambda v : v, ["alt"], lambda v : v/1e3, lambda v : v*1e3),
+        ("alt", lambda v : v, ["alt"]),
         ("velocity", Point, ["vx", "vy", "vz"]),
         ("acceleration", Point, ["afx", "afy", "afz"])
     ]

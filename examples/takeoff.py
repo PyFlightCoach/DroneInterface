@@ -1,26 +1,27 @@
 from droneinterface.vehicle import Vehicle
 from droneinterface.messages import mavlink
-from time import sleep
+from time import time
 from flightplotting import plotsec
 import logging
+from flightanalysis import State
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, input=False)
+vehicle = Vehicle.connect('tcp:127.0.0.1:5763', 1, input=False)
 
 
 vehicle.set_mode(mavlink.PLANE_MODE_TAKEOFF)
 vehicle.arm()
-
-with vehicle.subscribe(vehicle.get_state.ids) as observer:
-    st = observer.get_state()
+end = time() + 20
+with vehicle.subscribe(vehicle.state.ids, 10) as observer:
+    st = vehicle.last_state()
 
     while st.z[-1] < 49:
-        state = observer.get_state()
+        state = vehicle.last_state()
         if state.z[0] > 2:#
             
-            st = st.append(state)
-        sleep(0.01)
-
-plotsec(st, nmodels=50, scale=2).show()
+            st = st.append(state, "now")
+        #sleep(0.01)
+plotsec(st, nmodels=3, scale=2).show()

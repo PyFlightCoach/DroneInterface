@@ -99,7 +99,7 @@ class LastMessage:
 
 
 class Connection(Thread):
-    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=10):
+    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=2):
         super().__init__(daemon=True)
         self.master = master
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir

@@ -54,4 +54,4 @@ def append_combinators(obj, reduced_ids: List[int] = None) -> None:
             setattr(obj, cname.lower(), combi)
             setattr(obj, f"last_{cname.lower()}", lambda *args, **kwargs: combi.generate("last", *args, **kwargs))
             setattr(obj, f"get_{cname.lower()}", lambda *args, **kwargs: combi.generate("get", *args, **kwargs))
-
+            setattr(obj, f"next_{cname.lower()}", lambda *args, **kwargs: combi.generate("next", *args, **kwargs))
