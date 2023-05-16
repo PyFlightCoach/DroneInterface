@@ -49,7 +49,7 @@ class Vehicle(Base):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=2, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=3, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
@@ -75,8 +75,7 @@ class Vehicle(Base):
             _spl = name.split("_")
             if _spl[1] in wrappermap:
                 if _spl[0] in ["last", "get", "next", "_last", "_get", "_next"]:
-                    return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)
-                
+                    return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)    
         if name in command_map:
             return lambda *args : self.send_command(*command_map[name](*args))
         raise AttributeError(f"{name} not found in message wrappers or command map")
@@ -113,6 +112,9 @@ class Vehicle(Base):
         logging.debug(self._msg(f"Sending message {str(msg)}"))
         self.conn.master.mav.send(msg if isinstance(msg, mavlink.MAVLink_message) else msg.encoder())
     
+    def schedule(self, method, rate) -> Repeater:
+        return Repeater(method, rate)
+
     def _last_message(self, id, max_age=None) -> LastMessage:
         """return the last message if it exists and it is less old than max_age. otherwise return None."""
         if id in self.msgs:
@@ -188,14 +190,16 @@ class RateHistory:
         self._last_message = veh._get_message(id, 2.0, None)
         
         self.initial_rate = max(self.current_rate(), 1.0)
-        self.desired_rate = max(self.initial_rate, desired_rate)
+        self.desired_rate = desired_rate
                 
     def current_rate(self):
         return self._last_message.rate
 
     def set_rate(self, veh: Vehicle):
-        if self.current_rate() < self.desired_rate:
-            veh.set_message_rate(self._last_message.id, self.desired_rate)
+        rate = self.current_rate()
+        if rate < self.desired_rate:
+            logging.debug(f"increasing rate for msg {self.id} from {rate} to {self.desired_rate}")
+            veh.set_message_rate(self._last_message.id, self.desired_rate * 1.5)
 
     def reset_rate(self, veh: Vehicle):
         veh.set_message_rate(self._last_message.id, self.initial_rate)
@@ -205,7 +209,6 @@ class Observer(Thread):
     def __init__(self, veh: Vehicle, ids: List[int], rate: int) -> None:
         super().__init__(daemon=True)
         self.veh = veh
-        self.desired_rate = rate
         self.base_rates = {id: RateHistory(self.veh, id, rate) for id in ids}
         
 
@@ -216,7 +219,7 @@ class Observer(Thread):
         while not self._is_stopped:
             for rh in self.base_rates.values():
                 rh.set_rate(self.veh)
-            sleep(1)
+            sleep(5)
 
     def stop(self):
         self._is_stopped = True
@@ -230,4 +233,26 @@ class Observer(Thread):
     
     def __exit__(self, xc_type, exc_value, exc_tb):
         self.stop()
-        
+
+
+class Repeater(Thread):
+    def __init__(self, method, rate):
+        super().__init__(daemon=True)
+        self.method = method
+        self.rate = rate
+
+    def run(self):
+        while not self._is_stopped:
+            self.method()
+            sleep(1/self.rate)
+    
+    def stop(self):
+        self._is_stopped = True
+        self.join() 
+
+    def __enter__(self):
+        self.start()
+        return self
+    
+    def __exit__(self, xc_type, exc_value, exc_tb):
+        self.stop()

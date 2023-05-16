@@ -88,7 +88,7 @@ class LastMessage:
 
     @property
     def rate(self):
-        rate = np.round(1 / np.mean(np.diff(self.times)), 1)
+        rate = np.round(1 / np.mean(np.diff(self.times)), 0)
         return 0 if np.isnan(rate) else rate
 
     def all_messages(self) -> pd.DataFrame:
@@ -140,7 +140,7 @@ class Connection(Thread):
         while self.is_alive():
             try:
                 msg = self.master.recv_msg()
-                if msg is None or isinstance(msg, mavlink.MAVLink_bad_data):
+                if msg is None or not hasattr(msg, 'id'):
                     if self.source == "DF":
                         break
                     else:

@@ -16,8 +16,11 @@ class Combinator:
     def __init_subclass__(cls):
         combinators[cls.output.__name__] = cls  
 
-    def _prepare(self, request: str, *args, **kwargs):       
-        return tuple(self.vehicle.async_messages(request, self.ids, *args, **kwargs))
+    def _prepare(self, request: str, *args, **kwargs):
+        if request == "last":
+            return tuple(self.vehicle.last_message(id, *args, **kwargs) for id in self.ids)
+        else:
+            return tuple(self.vehicle.async_messages(request, self.ids, *args, **kwargs))
 
 #        return tuple(getattr(self.vehicle, f"{request}_{v.__name__}")() for v in self.wrappers.values())    
    
