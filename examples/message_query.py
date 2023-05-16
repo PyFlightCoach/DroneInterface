@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 
-vehicle = Vehicle.connect('tcp:127.0.0.1:5763', 1)
+vehicle = Vehicle.connect('udp:0.0.0.0:14550', 1)
 
 
 while True:

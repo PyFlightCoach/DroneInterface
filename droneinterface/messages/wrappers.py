@@ -3,7 +3,7 @@ from droneinterface.messages import mavlink
 from geometry import Point, GPS, Quaternion
 from pymavlink import mavutil
 import numpy as np
-from typing import List
+from typing import List, Dict
 from .wrapper_factory import wrapper_factory, wrappers
 
 
@@ -169,6 +169,28 @@ Wind = wrapper_factory(
         ("velocity", Point, ["wind_x", "wind_y", "wind_z"]),
     ]
 
+)
+
+
+_ignore = list(np.zeros((18), dtype=int))
+_release = list(np.full(9, 2**16)) + list(np.full(9, 2**16-1))
+def set_channels(targ_sys, targ_comp, channels: Dict[int, int], others:str="ignore") -> RCOverride:
+    oth = _release if others == "release" else _ignore
+
+    return RCOverride(0, targ_sys, targ_comp, \
+        *[(channels[i] if i in channels else oth[i]) for i in range(18) ]
+    )
+
+
+RCOverride = wrapper_factory(
+    "RCOverride",
+    mavlink.MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE,
+    [],
+    dict(
+        set_channels = staticmethod(set_channels), 
+        set_channel = staticmethod(lambda ts, tc, ch, val, others="ignore" : set_channels(ts, tc, {ch: val}, others)),
+        release_channels = staticmethod(lambda ts, tc, channels: set_channels(ts, tc, {ch: _release[ch] for ch in channels})),
+    )
 )
 
 

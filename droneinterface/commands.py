@@ -45,6 +45,6 @@ def set_mode(mode: int):
     return (mavlink.MAV_CMD_DO_SET_MODE, mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, mode)
 
 @command
-def set_servo(instance, pwm: int):
-    return (mavlink.MAV_CMD_DO_SET_SERVO, instance, pwm)
+def set_rc_channel(instance, pwm: int):
+    return (mavlink.RC_CHANNELS_OVERRIDE, instance, pwm)
 

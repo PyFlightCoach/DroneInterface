@@ -49,13 +49,15 @@ class Vehicle(Base):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, n=2, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=2, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
-            None if outdir is None else Connection.create_folder(outdir),
+            None if (outdir is None or store_messages=="none") else Connection.create_folder(outdir),
+            store_messages,
             n
         )
+
         conn.start()
         return Vehicle(conn, sysid, compid, box).wait_for_boot()
         
