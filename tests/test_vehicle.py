@@ -6,7 +6,7 @@ from geometry.testing import assert_almost_equal
 from time import sleep
 from droneinterface.messages import mavlink
 from droneinterface.messages import wrappers
-
+from pathlib import Path
 
 
 @fixture(scope="session")
@@ -45,3 +45,13 @@ def test_arm_disarm(conn: Vehicle):
 
 
 
+@fixture
+def veh_fol() -> Vehicle:
+    return Vehicle.from_folder(
+        Path("tests/test_data/Conn"),
+        4
+    )
+
+def test_last_heartbeat(veh_fol):
+    hb = veh_fol.last_heartbeat()
+    assert hb.id == 0

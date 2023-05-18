@@ -5,16 +5,30 @@ from droneinterface import Connection
 import plotly.express as px
 from time import sleep
 
-folder = Path("log_tmp/flight_1_shakedown")
 
-def last_run():
-    dates = {Connection.parse_date(run): run for run in folder.glob("Conn_*")}
+
+
+def get_runs_in_folder(folder):
+    return {Connection.parse_date(run): run for run in folder.glob("Conn_*")}
+
+def last_run_in_folder(folder):
+    dates = get_runs_in_folder(folder)
     if len(dates) ==0:
         return None
     return dates[max(dates.keys())]
 
-def last_recording(path):
-    recordings = {int(p.name.split("_")[-1]): p for p in path.glob("sweep_*") if (p / "summary.csv").exists()}
+
+def get_recordings_in_folder(runpath, require_summary=True):
+    def check_summary(p):
+        if not require_summary: 
+            return True
+        else:
+            return (p / "summary.csv").exists()
+
+    return {int(p.name.split("_")[-1]): p for p in runpath.glob("sweep_*") if check_summary(p)}
+
+def last_recording(runpath):
+    recordings = get_recordings_in_folder(runpath)
     if len(recordings) ==0:
         return None
     return recordings[max(recordings.keys())]
@@ -25,11 +39,12 @@ def plotsummary(name, df):
 
 
 if __name__ == "__main__":
+    folder = Path("~/projects/montserrat/DroneInterfaceOutput/flight_1_shakedown")
     plotted_run = None
     plotted_recording = None
 
     while True:
-        runtoplot = last_run()
+        runtoplot = last_run_in_folder(folder)
         recording_to_plot = last_recording(runtoplot)
         if not recording_to_plot==plotted_recording or not runtoplot==plotted_run:
             if recording_to_plot is None or runtoplot is None:

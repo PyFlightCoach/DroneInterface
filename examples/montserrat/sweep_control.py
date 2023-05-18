@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
 
-    vehicle = titan.titan("flight_1_shakedown", sim=True)
+    vehicle = titan.titan("flight_2", sim=True)
 
     
     last_wp = 0

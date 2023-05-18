@@ -19,11 +19,14 @@ class LastMessage:
         self.rev_colmap = rev_colmap
         self.outfile = outfile
         if self.outfile is not None:
-            if self.outfile.stat().st_size == 0:
+            if not self.outfile.exists():
                 with open(self.outfile, "w") as f:
                     print(",".join(list(self.colmap.keys())), file=f)
             else:
-                pass
+                df = pd.read_csv(self.outfile)
+                for i in range(n):
+                    if i < len(df):
+                        self.history.appendleft(self.create_message(df.iloc[-(i+1)]))
             self.io = open(self.outfile, "a")
 
     @property
@@ -86,6 +89,12 @@ class LastMessage:
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
             print(",".join(data), file=self.io)
+            self.io.flush()
+
+    def create_message(self, data:pd.Series):
+        msg =  mavlink.mavlink_map[self.id](**{k:rmap(data) for k, rmap in self.rev_colmap.items()})
+        msg._timestamp = data.name
+        return msg
 
     @property
     def rate(self):

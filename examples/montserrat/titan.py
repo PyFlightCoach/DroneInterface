@@ -28,7 +28,7 @@ def set_flap(vehicle: Vehicle, pwm, location="inbd") -> Repeater:
 Vehicle.set_flap = set_flap
 
 def titan(flightname, sim=False) -> Vehicle: 
-    outd = Path(f"log_tmp/{flightname}")
+    outd = Path(f"/home/td6834/projects/montserrat/DroneInterfaceOutput/{flightname}")
     outd.mkdir(exist_ok=True)
     return Vehicle.connect(
         'tcp:0.0.0.0:5763' if sim else 'udp:0.0.0.0:14550', 

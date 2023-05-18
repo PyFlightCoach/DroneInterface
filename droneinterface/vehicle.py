@@ -38,7 +38,7 @@ class Vehicle(Base):
         append_combinators(self)
 
         self.origin = origin
-        self.box = box#Box("origin", self.origin, 0.0)
+        self.box = box#Box("origin", self.origin,
         self.flightline = flightline
 
     def __str__(self):
@@ -55,7 +55,7 @@ class Vehicle(Base):
         )
 
         conn.start()
-        veh = Vehicle(conn, sysid, compid, box).wait_for_boot()
+        veh = Vehicle(conn, sysid, compid).wait_for_boot()
         origin = veh.get_GlobalOrigin(None, None).position
         box = Box("origin", origin, 0.0) if box is None else box
         
@@ -65,6 +65,19 @@ class Vehicle(Base):
             flightline=FlightLine.from_box(box, origin)
         )
     
+    @staticmethod
+    def from_folder(outdir:Path, sysid: int, compid:int=1, box: Box=None):
+        conn = Connection(outdir=outdir)
+        veh = Vehicle(conn, sysid, compid)
+        origin = veh.last_globalorigin().position
+        box = Box("origin", origin, 0.0) if box is None else box
+
+        return veh.update(
+            origin=origin,
+            box=box,
+            flightline=FlightLine.from_box(box, origin)
+        )
+
 
     def update(self, **kwargs) -> Vehicle:
         args = inspect.getfullargspec(self.__class__.__init__)[0]
