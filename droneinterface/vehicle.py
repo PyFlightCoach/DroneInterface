@@ -26,7 +26,7 @@ class TimeoutError(Exception):
 
 
 class Vehicle(Base):
-    def __init__(self, conn: Connection, sysid: int, compid:int, box: Box=None) -> None:
+    def __init__(self, conn: Connection, sysid: int, compid:int, origin: GPS=None, box: Box=None, flightline: FlightLine=None) -> None:
         super().__init__()
         self.conn: Connection = conn
         self.sysid = sysid
@@ -37,13 +37,9 @@ class Vehicle(Base):
 
         append_combinators(self)
 
-        self.wait_for_boot()
-        self.origin = self.get_GlobalOrigin(None, None).position
-        
-        if box is None:
-            self.box = Box("origin", self.origin, 0.0)
-        self.flightline = FlightLine.from_box(self.box, self.origin)
-
+        self.origin = origin
+        self.box = box#Box("origin", self.origin, 0.0)
+        self.flightline = flightline
 
     def __str__(self):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
@@ -59,8 +55,16 @@ class Vehicle(Base):
         )
 
         conn.start()
-        return Vehicle(conn, sysid, compid, box).wait_for_boot()
+        veh = Vehicle(conn, sysid, compid, box).wait_for_boot()
+        origin = veh.get_GlobalOrigin(None, None).position
+        box = Box("origin", origin, 0.0) if box is None else box
         
+        return veh.update(
+            origin=origin,
+            box=box,
+            flightline=FlightLine.from_box(box, origin)
+        )
+    
 
     def update(self, **kwargs) -> Vehicle:
         args = inspect.getfullargspec(self.__class__.__init__)[0]

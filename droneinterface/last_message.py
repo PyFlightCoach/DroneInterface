@@ -19,8 +19,11 @@ class LastMessage:
         self.rev_colmap = rev_colmap
         self.outfile = outfile
         if self.outfile is not None:
-            with open(self.outfile, "w") as f:
-                print(",".join(list(self.colmap.keys())), file=f)
+            if self.outfile.stat().st_size == 0:
+                with open(self.outfile, "w") as f:
+                    print(",".join(list(self.colmap.keys())), file=f)
+            else:
+                pass
             self.io = open(self.outfile, "a")
 
     @property
@@ -54,11 +57,11 @@ class LastMessage:
 
     @staticmethod
     def build_mavlink(msg, outfile: Path=None, n=3):
-        return LastMessage.build_mavlink(msg, outfile, n)
+        return LastMessage._build_mavlink(msg.__class__, outfile, n)
 
     @staticmethod
     def build_csv(outfile: Path):
-        msgid = int(outfile.name.split("_")[1])         
+        msgid = int(outfile.stem.split("_")[1])         
         return LastMessage._build_mavlink(mavlink.mavlink_map[msgid], outfile)
 
     @staticmethod

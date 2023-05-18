@@ -16,13 +16,25 @@ from .last_message import LastMessage
 
 
 class Connection(Thread):
-    def __init__(self, master: mavutil.mavfile, outdir: Path=None, store_messages: Union[List[int], str]="all", n=2):
+    def __init__(self, master: mavutil.mavfile=None, outdir: Path=None, store_messages: Union[List[int], str]="all", append=True, n=2):
         super().__init__(daemon=True)
         self.master = master
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
         self.outdir.mkdir(exist_ok=True)
         
         self.msgs: Dict[int: Dict[Union[int, str]: LastMessage]] = {}   #first key system id, second key message id
+
+        if any(Path(self.outdir).iterdir()):
+            if not append:
+                raise Exception("Outdir is not empty. Provide an empty directory or set append=True")
+            else:
+                #TODO check the csv is in the right format
+                for f in outdir.glob("*.csv"):
+                    sysid = int(f.name.split("_")[0])
+                    if not sysid in self.msgs:
+                        self.msgs[sysid] = {}
+                    lm = LastMessage.build_csv(f)
+                    self.msgs[sysid][lm.id] = lm    
         self.n = n
 
         self.store_messages = store_messages
@@ -124,14 +136,6 @@ class Connection(Thread):
             sys.stdout.flush()
 
         return conn.join_messages(store_messages)
-
-    @staticmethod
-    def parse_folder(outdir: Path):
-        conn = Connection(None, outdir)
-
-        for f in outdir.glob("*.csv"):
-            conn.msgs[int(f.name.split("_")[0])] = LastMessage.build_csv(f)
-        return conn
 
     def join_messages(self, ids: list, systemid:int=1) -> pd.DataFrame:
         keys = [k for k in keys if k in self.msgs.keys()]
