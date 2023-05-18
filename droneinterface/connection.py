@@ -5,97 +5,14 @@ from time import time, sleep
 from datetime import datetime
 from threading import Thread, Event
 import logging
-from flightanalysis import Box, State, FlightLine
-from geometry import Coord
-from droneinterface import mavlink
-import numpy as np
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import numpy as np
 import pandas as pd
-from numbers import Number
-from functools import partial
-from io import StringIO
 import traceback
 import sys
-from collections import deque
-from .messages import wrappers, mdefs, wrappermap
 
-
-class LastMessage:
-    def __init__(self, id, colmap: dict, rev_colmap: dict, outfile: Path=None, n=3):
-        self.id = id
-        self.history = deque(maxlen=n)
-        self.last_time = None
-        self.colmap = colmap 
-        self.rev_colmap = rev_colmap
-        self.outfile = outfile
-        if self.outfile is not None:
-            with open(self.outfile, "w") as f:
-                print(",".join(list(self.colmap.keys())), file=f)
-            self.io = open(self.outfile, "a")
-
-    @property
-    def times(self) -> List[float]:
-        return [m._timestamp for m in self.history]
-
-    @property
-    def last_message(self):
-        return self.history[-1]
-
-    @staticmethod
-    def build_mavlink(msg, outfile: Path=None, n=3):
-        colmap = {"timestamp": lambda msg: msg._timestamp}
-        rev_colmap = {}
-        for fname, l in zip(msg.__class__.ordered_fieldnames, msg.__class__.lengths):
-            if l == 1:
-                colmap[fname] = partial(lambda fname, msg: getattr(msg, fname), fname)
-                rev_colmap[fname] = partial(lambda fname, data: data[fname], fname)
-            else:
-                for i in range(l):
-                    colmap[f"{fname}_{i}"] = partial(lambda fname, i, msg: getattr(msg, fname)[i], fname, i)
-                rev_colmap[fname] = partial(lambda fname, l, data: [data[f"{fname}_{i}"] for i in range(l)], fname, l)
-        
-        return LastMessage(
-            msg.__class__.id, 
-            colmap, 
-            rev_colmap, 
-            outfile, 
-            n
-        )
-
-    @staticmethod
-    def build_bin(msg, outfile: Path=None, n=3):
-        colmap = {"timestamp": lambda msg: msg._timestamp}
-        rev_colmap = dict()
-        for fname in msg._fieldnames:
-            colmap[fname] = partial(lambda fname, msg: getattr(msg, fname), fname)
-            rev_colmap[fname] = partial(lambda fname, data: data[fname], fname)
-
-        return LastMessage(
-            msg.get_type(), 
-            colmap, 
-            rev_colmap, 
-            outfile, 
-            n
-        )
-
-    def receive_message(self, msg):        
-        self.history.append(msg)
-        self.last_time = time()
-        if self.outfile is not None:
-            data = [str(v(msg)) for v in self.colmap.values()]
-            print(",".join(data), file=self.io)
-
-    @property
-    def rate(self):
-        rate = np.round(1 / np.mean(np.diff(self.times)), 0)
-        return 0 if np.isnan(rate) else rate
-
-    def all_messages(self) -> pd.DataFrame:
-        return pd.read_csv(self.outfile).set_index("timestamp")
-
-    def wrapper(self, i=-1):
-        return wrappers[self.id].parse(self.history[i])
+from .last_message import LastMessage
 
 
 class Connection(Thread):
@@ -188,6 +105,14 @@ class Connection(Thread):
         outdir.mkdir()
         return outdir
 
+    @staticmethod
+    def parse_date(path: Path):
+        if path.is_dir():
+            if len(path.name) > 5:
+                if path.name[:5] == "Conn_":
+                    return datetime.strptime(path.name[5:], '%Y_%m_%d_%H_%M_%S')
+
+    @staticmethod
     def parse_bin(path:str, store_messages: list):
         conn = Connection(
             mavutil.mavlink_connection(path),
@@ -199,6 +124,14 @@ class Connection(Thread):
             sys.stdout.flush()
 
         return conn.join_messages(store_messages)
+
+    @staticmethod
+    def parse_folder(outdir: Path):
+        conn = Connection(None, outdir)
+
+        for f in outdir.glob("*.csv"):
+            conn.msgs[int(f.name.split("_")[0])] = LastMessage.build_csv(f)
+        return conn
 
     def join_messages(self, ids: list, systemid:int=1) -> pd.DataFrame:
         keys = [k for k in keys if k in self.msgs.keys()]
@@ -219,7 +152,6 @@ class Connection(Thread):
         if ids is None:
             ids = self.msgs[systemid].keys()
         return [self.msgs[systemid][id].rate if id in self.msgs[systemid] else 0 for id in ids]
-
 
 
 if __name__ == "__main__":
