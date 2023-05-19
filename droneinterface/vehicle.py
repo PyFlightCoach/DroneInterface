@@ -210,16 +210,19 @@ class RateHistory:
         self.desired_rate = desired_rate
                 
     def current_rate(self):
-        return self._last_message.rate
+        if self._last_message is None: 
+            return 0
+        else:
+            return self._last_message.rate
 
     def set_rate(self, veh: Vehicle):
         rate = self.current_rate()
         if rate < self.desired_rate:
             logging.debug(f"increasing rate for msg {self.id} from {rate} to {self.desired_rate}")
-            veh.set_message_rate(self._last_message.id, self.desired_rate * 1.5)
+            veh.set_message_rate(self.id, self.desired_rate * 1.5)
 
     def reset_rate(self, veh: Vehicle):
-        veh.set_message_rate(self._last_message.id, self.initial_rate)
+        veh.set_message_rate(self.id, self.initial_rate)
 
 
 class Observer(Thread):

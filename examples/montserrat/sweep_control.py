@@ -87,9 +87,9 @@ class ControlSweep:
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
-    vehicle = titan.titan("flight_2", sim=True)
+    vehicle = titan.titan("flight_3")
 
     
     last_wp = 0
