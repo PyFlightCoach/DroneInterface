@@ -72,12 +72,15 @@ def plotsummary(name, df):
     i=tr(i, "ground_speed", df.ground_speed, (0,30))
     i=tr(i, "wind_speed", df.wind_speed, (0,30))
     i=tr(i, "wind_direction", df.wind_direction, (-180,180))
+    i=tr(i, "servo_9", df.servo_9, (1000,2000))
+    i=tr(i, "servo_10", df.servo_10, (1000,2000))
+
 
     fig.show(renderer="titleBrowser", browser_tab_title=name.split(" ")[1])
 
 
 if __name__ == "__main__":
-    folder = Path("/home/td6834/projects/montserrat/DroneInterfaceOutput/flight_4_sim")
+    folder = Path("/home/td6834/projects/montserrat/DroneInterfaceOutput/flight_6")
     plotted_run = None
     plotted_recording = None
 

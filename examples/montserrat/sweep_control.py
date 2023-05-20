@@ -30,7 +30,9 @@ class ControlSweep:
             "ground_speed", 
             "airspeed", 
             "wind_direction", 
-            "wind_speed"
+            "wind_speed",
+            "servo_9",
+            "servo_10"
         ]
         self.lr = -1
         self.started = 0
@@ -43,14 +45,18 @@ class ControlSweep:
     def is_finished(self, cr):
         return cr >= len(self.data)
 
-    def update(self, st, bs, w, hud):
+    def stop(self):
+        if not self.repeater is None:
+            self.repeater.stop()
+            self.repeater = None
+
+    def update(self, st, bs, w, hud, rc):
         cr = self.get_cr(st.t[0])
 
         if self.is_finished(cr):
             if not self.repeater is None:
-                logging.info(f"Clearing Control")
-                self.repeater.stop()
-                self.repeater = None
+                self.stop()
+                
                 df = self.summary()
                 print(df)
                 if not self.outdir is None:
@@ -58,9 +64,10 @@ class ControlSweep:
             return None
 
         if cr > self.lr:
-            logging.info(f"Setting Control to {self.positions[cr]}")
+            self.stop()
             self.save_record(self.lr)
-                
+
+            logging.info(f"Setting Control to {self.positions[cr]}")
             self.repeater = self.command(list(self.data.keys())[cr])
             self.lr = cr
 
@@ -74,6 +81,8 @@ class ControlSweep:
                 hud.airspeed,
                 w.direction,
                 w.speed,
+                rc.servo9_raw,
+                rc.servo9_raw
             ])
 
     def save_record(self, r_id):
@@ -87,13 +96,9 @@ class ControlSweep:
         return {k: pd.DataFrame(v, columns=self.keys) for k, v in self.data.items()}
 
     def summary(self):
-
         df =  pd.DataFrame({k: v.mean() for k, v in self.dfs().items()}).T
-
         df["first_timestamp"] = {k:v.timestamp.iloc[0] for k, v in self.dfs().items()}
         df["last_timestamp"] = {k:v.timestamp.iloc[-1] for k, v in self.dfs().items()}
-
-        
         return df
 
 
@@ -102,20 +107,27 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
 
-    vehicle = titan.titan("flight_4", sim=False)
+    vehicle = titan.titan("flight_6", sim=False)
 
     
     last_wp = 0
     new_record = False
     records: List[ControlSweep] = []
 
+    last_flap = 0
     with vehicle.subscribe(
-        vehicle.state.ids + [168, 147, 74], 
+        vehicle.state.ids + [168, 147, 74, 36, 65], 
         10
     ):
         while True:
+
             if not vehicle.last_heartbeat().mode == "AUTO":
                 continue
+
+            new_flap = vehicle.last_SERVOOUTPUTRAW().servo9_raw
+            if not new_flap == last_flap:
+                last_flap = new_flap
+                logging.info(f"new servo 9 position = {last_flap}")
 
             next_wp = vehicle.last_missionCurrent().seq
             if not next_wp == last_wp or last_wp == 0:
@@ -125,6 +137,9 @@ if __name__ == "__main__":
                 last_wp = next_wp
                 new_record = True
 
+                if len(records) > 0:
+                    records[-1].stop()
+                    
             st = vehicle.last_state()
             path = target_point - st.pos 
             
@@ -154,6 +169,7 @@ if __name__ == "__main__":
                         st, 
                         vehicle.last_BatteryStatus(), 
                         vehicle.last_wind(),
-                        vehicle.last_vfrhud()
+                        vehicle.last_vfrhud(),
+                        vehicle.last_SERVOOUTPUTRAW()
                     )
 

@@ -5,7 +5,7 @@ logging.basicConfig(level=logging.INFO)
 
 import titan
 
-vehicle = titan.titan("flight_3_ground_test", sim=False)
+vehicle = titan.titan("flight_6_ground_test", sim=False)
 
 repeater = None
 while True:
@@ -15,6 +15,10 @@ while True:
         if not repeater is None:
             repeater.stop()
         repeater = vehicle.set_flap(pwm, "inbd")
+        new_flap = vehicle.get_SERVOOUTPUTRAW(None, 0 )
+        servos = [getattr(new_flap, f'servo{i+1}_raw') for i in range(10)]
+        servos = ",".join([f"{s:04d}" for s in servos ])
+        print(f"\r{servos}")
         
     except Exception as ex:
 

@@ -278,9 +278,12 @@ class Repeater(Thread):
         self.rate = rate
 
     def run(self):
+        last_call = 0
         while not self._is_stopped:
-            self.method()
-            sleep(1/self.rate)
+            if time() - last_call >= 1 / self.rate:
+                self.method()
+                last_call = time()
+        logging.info("Repeater Stopped")
     
     def stop(self):
         self._is_stopped = True
