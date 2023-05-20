@@ -110,6 +110,10 @@ class Connection(Thread):
             waiter_index[msgid] = Event()
         return waiter_index[msgid]
 
+    def remove_waiter(self, systemid, msgid):
+        if systemid in self.waiters:
+            if msgid in self.waiters[systemid]:
+                del self.waiters[systemid][msgid]
 
     @staticmethod    
     def create_folder(path: Path):

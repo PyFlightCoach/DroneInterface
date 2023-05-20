@@ -19,7 +19,7 @@ def set_flap(vehicle: Vehicle, pwm, location="inbd") -> Repeater:
             5 if location == "otbd" else 7, 
             pwm
         )),
-        1
+        0.5
     )
     repeater.start()
     return repeater

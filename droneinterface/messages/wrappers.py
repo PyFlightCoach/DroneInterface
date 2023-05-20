@@ -162,14 +162,7 @@ BatteryStatus = wrapper_factory(
 )
 
 
-Wind = wrapper_factory(
-    "Wind",
-    mavlink.MAVLINK_MSG_ID_WIND_COV,
-    [
-        ("velocity", Point, ["wind_x", "wind_y", "wind_z"]),
-    ]
 
-)
 
 
 _ignore = list(np.zeros((18), dtype=int))

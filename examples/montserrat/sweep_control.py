@@ -22,7 +22,16 @@ class ControlSweep:
         if not self.outdir is None:
             self.outdir.mkdir(exist_ok=True)
         self.settle = self.duration * sfac
-        self.keys = ["timestamp", "current", "voltage", "ground_speed"]
+        self.keys = [
+            "timestamp", 
+            "current", 
+            "voltage", 
+            "state_speed", 
+            "ground_speed", 
+            "airspeed", 
+            "wind_direction", 
+            "wind_speed"
+        ]
         self.lr = -1
         self.started = 0
 
@@ -34,7 +43,7 @@ class ControlSweep:
     def is_finished(self, cr):
         return cr >= len(self.data)
 
-    def update(self, st, bs):
+    def update(self, st, bs, w, hud):
         cr = self.get_cr(st.t[0])
 
         if self.is_finished(cr):
@@ -60,7 +69,11 @@ class ControlSweep:
                 st.t[0],
                 bs.current,
                 bs.voltage,
-                abs(st.vel)[0]
+                abs(st.vel)[0],
+                hud.groundspeed,
+                hud.airspeed,
+                w.direction,
+                w.speed,
             ])
 
     def save_record(self, r_id):
@@ -87,9 +100,9 @@ class ControlSweep:
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
-    vehicle = titan.titan("flight_3")
+    vehicle = titan.titan("flight_4", sim=False)
 
     
     last_wp = 0
@@ -137,5 +150,10 @@ if __name__ == "__main__":
                         logging.info(f"start recording {len(records)}")
                     
                 if len(records) > 0:    
-                    records[-1].update(st, vehicle.last_BatteryStatus())
+                    records[-1].update(
+                        st, 
+                        vehicle.last_BatteryStatus(), 
+                        vehicle.last_wind(),
+                        vehicle.last_vfrhud()
+                    )
 

@@ -151,20 +151,38 @@ class Vehicle(Base):
     def _get_message(self, id, timeout=0.2, max_age=0.1) -> LastMessage:
         """get a message. 
         first try younger than max_age, 
-        then wait if its likely to turn up in less than timout, 
-        then request and wait timeout"""
+        then wait for the next one, 
+        request periodically while waiting"""
+        timeout = 9999 if timeout is None else timeout
         lm = self._last_message(id, max_age)
         if not lm is None:
             return lm
         elif not max_age is None:
             lm = self._last_message(id, None)
-        if lm is None or timeout is None:
-            self.request_message(id)
-        else:
-            if lm.rate < (1/timeout):
-                self.request_message(id)          
+        
+        stop = time() + timeout
 
-        msg = self._next_message(id, timeout)
+        msgwaiter = self.conn.add_waiter(self.sysid, id)#MessageWaiter(self._next_message, id, timeout)
+
+        lastrequest=0
+
+        while time() < stop:
+            if msgwaiter.is_set():
+                msg = self._last_message(id, None)
+                break
+            if time() > lastrequest + min(timeout, 1):
+                if lm is None:
+                    self.request_message(id)
+                else:
+                    if lm.rate < (1/(min(timeout, 2))):
+                        self.request_message(id)
+                lastrequest = time()
+        else:
+            logging.debug(self._msg(f"Failed to receive msg {str(id)} after {timeout} seconds"))
+            msg=None
+        
+        self.conn.remove_waiter(self.sysid, id)
+
         logging.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
@@ -180,7 +198,7 @@ class Vehicle(Base):
         return Observer(self, ids, rate)
     
     def async_messages(self, method: str, ids, *args, **kwargs):
-
+        
         ths = [MessageWaiter(getattr(self, f"{method}_message"), id, *args, **kwargs) for id in ids]
         
         while any([th.is_alive() for th in ths]):
@@ -203,9 +221,7 @@ class MessageWaiter(Thread):
 class RateHistory:
     def __init__(self, veh, id, desired_rate):
         self.id = id
-            
         self._last_message = veh._get_message(id, 2.0, None)
-        
         self.initial_rate = max(self.current_rate(), 1.0)
         self.desired_rate = desired_rate
                 

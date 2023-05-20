@@ -3,6 +3,8 @@ import pandas as pd
 from pathlib import Path
 from droneinterface import Connection
 import plotly.express as px
+import plotly.graph_objects as go
+from flightplotting import titlerenderer
 from time import sleep
 
 
@@ -32,14 +34,50 @@ def last_recording(runpath):
     if len(recordings) ==0:
         return None
     return recordings[max(recordings.keys())]
-``
+
 
 def plotsummary(name, df):
-    px.scatter(x=df.index, y=df.current * df.voltage, title=name).show()
+    fig = go.Figure(layout=go.Layout(title=name))
+    fig.update_layout(
+        xaxis=dict(
+            title="flap setting",
+            range=(1200,1800)
+        )
+    )
+    def tr(i, name, col, range=None):
+        id = '' if i==0 else i+1
+        fig.add_trace(go.Scatter(x=df.index, y=col, name=name, yaxis=f"y{id}"))  
+        if i == 0: 
+            fig.update_layout(
+                yaxis=dict(title=name)
+            )
+        else: 
+            fig.update_layout(
+                **{
+                    f"yaxis{id}": dict(
+                    title=name,
+                    anchor="free",
+                    side="left",
+                    overlaying="y",
+                    position=i*0.1
+                    )
+                }
+            )    
+        if not range is None:
+            fig.update_layout(**{f"yaxis{id}": dict(range=range)})
+        return i+1
+    i=0
+    i=tr(i, "Power", df.current * df.voltage, (0, 1000))
+    i=tr(i, "airspeed", df.airspeed, (0,30))
+    i=tr(i, "ground_speed", df.ground_speed, (0,30))
+    i=tr(i, "wind_speed", df.wind_speed, (0,30))
+    i=tr(i, "wind_direction", df.wind_direction, (-180,180))
+
+    fig.show(renderer="titleBrowser", browser_tab_title=name.split(" ")[1])
 
 
 if __name__ == "__main__":
-    folder = Path("~/projects/montserrat/DroneInterfaceOutput/flight_1_shakedown")
+    folder = Path("/home/td6834/projects/montserrat/DroneInterfaceOutput/flight_4_sim")
     plotted_run = None
     plotted_recording = None
 
@@ -51,7 +89,7 @@ if __name__ == "__main__":
                 continue
             summarycsv = recording_to_plot / "summary.csv"
             if summarycsv.exists():
-                summarydf = pd.read_csv(recording_to_plot / "summary.csv")
+                summarydf = pd.read_csv(recording_to_plot / "summary.csv", index_col=0)
                 plotsummary(f"{runtoplot.name} {recording_to_plot.name}", summarydf)
                 plotted_run = runtoplot
                 plotted_recording = recording_to_plot
