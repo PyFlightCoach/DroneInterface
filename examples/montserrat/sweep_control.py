@@ -7,7 +7,7 @@ import titan
 from math import floor
 from droneinterface.vehicle import Vehicle, Repeater
 from pathlib import Path
-
+from flightdata import Flight
 
 class ControlSweep:
     #TODO replace this with an optimiser
@@ -22,18 +22,6 @@ class ControlSweep:
         if not self.outdir is None:
             self.outdir.mkdir(exist_ok=True)
         self.settle = self.duration * sfac
-        self.keys = [
-            "timestamp", 
-            "current", 
-            "voltage", 
-            "state_speed", 
-            "ground_speed", 
-            "airspeed", 
-            "wind_direction", 
-            "wind_speed",
-            "servo_9",
-            "servo_10"
-        ]
         self.lr = -1
         self.started = 0
 
@@ -50,7 +38,7 @@ class ControlSweep:
             self.repeater.stop()
             self.repeater = None
 
-    def update(self, st, bs, w, hud, rc):
+    def update(self, *args, **kwargs):
         cr = self.get_cr(st.t[0])
 
         if self.is_finished(cr):
@@ -72,35 +60,51 @@ class ControlSweep:
             self.lr = cr
 
         if st.t[0] > self.settle:
-            self.data[list(self.data.keys())[cr]].append([
-                st.t[0],
-                bs.current,
-                bs.voltage,
-                abs(st.vel)[0],
-                hud.groundspeed,
-                hud.airspeed,
-                w.direction,
-                w.speed,
-                rc.servo9_raw,
-                rc.servo9_raw
-            ])
+            self.data[list(self.data.keys())[cr]].append(self.read_data(*args, **kwargs))
+
+    def read_data(self, st, bs, w, hud, rc):
+        return {
+            "timestamp": st.t[0],
+            "current": bs.current,
+            "voltage": bs.voltage,
+            "ground_speed": hud.groundspeed,
+            "airspeed": hud.airspeed,
+            "wind_direction": w.direction,
+            "wind_speed": w.speed,
+            "servo_9": rc.servo9_raw,
+            "servo_10": rc.servo9_raw
+        }
+
+    @staticmethod
+    def summary_from_flight(fl: Flight):        
+        return pd.DataFrame({
+            "timestamp": fl.time_flight,
+            "current": fl.current_0,
+            "voltage": fl.battery_0,
+            "ground_speed": abs(Point(fl.data.loc[:,["velocity_x", "velocity_y", "velocity_z"]])),
+            "airspeed": fl.airspeed_0,
+            "wind_direction": np.degrees(np.arctan2(fl.data.wind_x, fl.data.wind_y)),
+            "wind_speed": abs(Point(fl.data.wind_x, fl.data.wind_y, np.zeros(len(fl.data)))),
+            "servo_9": fl.data.servos_8,
+            "servo_10": fl.data.servos_9
+        })
 
     def save_record(self, r_id):
         if r_id >= 0 and r_id < len(self.positions) and not self.outdir is None:
             self.df(r_id).to_csv(self.outdir / f"{self.positions[r_id]}.csv")
 
     def df(self, r_id) -> pd.DataFrame:
-        return pd.DataFrame(list(self.data.values())[r_id], columns=self.keys)
+        return pd.DataFrame(list(self.data.values())[r_id])
 
     def dfs(self):
-        return {k: pd.DataFrame(v, columns=self.keys) for k, v in self.data.items()}
+        return {k: pd.DataFrame(v) for k, v in self.data.items()}
 
     def summary(self):
-        df =  pd.DataFrame({k: v.mean() for k, v in self.dfs().items()}).T
-        df["first_timestamp"] = {k:v.timestamp.iloc[0] for k, v in self.dfs().items()}
-        df["last_timestamp"] = {k:v.timestamp.iloc[-1] for k, v in self.dfs().items()}
+        dfs = self.dfs()
+        df =  pd.DataFrame({k: v.mean() for k, v in dfs.items()}).T
+        df["first_timestamp"] = {k:v.timestamp.iloc[0] for k, v in dfs.items()}
+        df["last_timestamp"] = {k:v.timestamp.iloc[-1] for k, v in dfs.items()}
         return df
-
 
 
 if __name__ == "__main__":

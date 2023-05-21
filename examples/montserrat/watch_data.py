@@ -74,9 +74,10 @@ def plotsummary(name, df):
     i=tr(i, "wind_direction", df.wind_direction, (-180,180))
     i=tr(i, "servo_9", df.servo_9, (1000,2000))
     i=tr(i, "servo_10", df.servo_10, (1000,2000))
+    return fig
+    #fig.show(renderer="titleBrowser", browser_tab_title=name.split(" ")[1])
 
 
-    fig.show(renderer="titleBrowser", browser_tab_title=name.split(" ")[1])
 
 
 if __name__ == "__main__":
@@ -93,7 +94,11 @@ if __name__ == "__main__":
             summarycsv = recording_to_plot / "summary.csv"
             if summarycsv.exists():
                 summarydf = pd.read_csv(recording_to_plot / "summary.csv", index_col=0)
-                plotsummary(f"{runtoplot.name} {recording_to_plot.name}", summarydf)
+                fig = plotsummary(f"{runtoplot.name} {recording_to_plot.name}", summarydf)
+                fig.show(
+                    renderer="titleBrowser", 
+                    browser_tab_title=recording_to_plot.name
+                )
                 plotted_run = runtoplot
                 plotted_recording = recording_to_plot
         sleep(5)
