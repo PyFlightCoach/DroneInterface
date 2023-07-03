@@ -44,11 +44,13 @@ class ControlSweep:
         if self.is_finished(cr):
             if not self.repeater is None:
                 self.stop()
-                
-                df = self.summary()
-                print(df)
-                if not self.outdir is None:
-                    df.to_csv(self.outdir / "summary.csv")
+                try:
+                    df = self.summary()
+                    print(df)
+                    if not self.outdir is None:
+                        df.to_csv(self.outdir / "summary.csv")
+                except Exception as ex:
+                    print(ex)
             return None
 
         if cr > self.lr:
@@ -60,9 +62,10 @@ class ControlSweep:
             self.lr = cr
 
         if st.t[0] > self.settle:
-            self.data[list(self.data.keys())[cr]].append(self.read_data(*args, **kwargs))
+            self.data[list(self.data.keys())[cr]].append(ControlSweep.read_data(*args, **kwargs))
 
-    def read_data(self, st, bs, w, hud, rc):
+    @staticmethod
+    def read_data(st, bs, w, hud, rc):
         return {
             "timestamp": st.t[0],
             "current": bs.current,
@@ -110,8 +113,10 @@ class ControlSweep:
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
+    sim = False
+    flightid=12
 
-    vehicle = titan.titan("flight_6", sim=False)
+    vehicle = titan.titan(f"flight_{flightid}{'_sim' if sim else ''}", sim)
 
     
     last_wp = 0
@@ -160,7 +165,7 @@ if __name__ == "__main__":
                     if time_to_next_wp > 60:
 
                         records.append(ControlSweep(
-                            command = lambda pwm: vehicle.set_flap(pwm, "inbd"),
+                            command = lambda pwm: vehicle.set_flap(pwm, "otbd" if sim else "inbd"),
                             positions=list(np.linspace(1200, 1800, 6).astype(int)),
                             duration=time_to_next_wp-20,
                             outdir=vehicle.conn.outdir / f"sweep_{len(records)}"

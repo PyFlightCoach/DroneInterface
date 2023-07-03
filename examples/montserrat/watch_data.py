@@ -81,7 +81,7 @@ def plotsummary(name, df):
 
 
 if __name__ == "__main__":
-    folder = Path("/home/td6834/projects/montserrat/DroneInterfaceOutput/flight_6")
+    folder = Path("/home/td6834/projects/montserrat/DroneInterfaceOutput/flight_12")
     plotted_run = None
     plotted_recording = None
 
@@ -93,12 +93,15 @@ if __name__ == "__main__":
                 continue
             summarycsv = recording_to_plot / "summary.csv"
             if summarycsv.exists():
-                summarydf = pd.read_csv(recording_to_plot / "summary.csv", index_col=0)
-                fig = plotsummary(f"{runtoplot.name} {recording_to_plot.name}", summarydf)
-                fig.show(
-                    renderer="titleBrowser", 
-                    browser_tab_title=recording_to_plot.name
-                )
-                plotted_run = runtoplot
-                plotted_recording = recording_to_plot
+                try:
+                    summarydf = pd.read_csv(recording_to_plot / "summary.csv", index_col=0)
+                    fig = plotsummary(f"{runtoplot.name} {recording_to_plot.name}", summarydf)
+                    fig.show(
+                        renderer="titleBrowser", 
+                        browser_tab_title=recording_to_plot.name
+                    )
+                    plotted_run = runtoplot
+                    plotted_recording = recording_to_plot
+                except Exception as ex:
+                    print(ex)
         sleep(5)

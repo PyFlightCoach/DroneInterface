@@ -5,7 +5,7 @@ logging.basicConfig(level=logging.INFO)
 
 import titan
 
-vehicle = titan.titan("flight_6_ground_test", sim=False)
+vehicle = titan.titan("flight_12_ground_test", sim=False)
 
 repeater = None
 while True:
