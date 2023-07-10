@@ -34,18 +34,17 @@ class Vehicle(Base):
         if not self.sysid in self.conn.msgs:
             self.conn.msgs[self.sysid] = {}
         self.msgs = self.conn.msgs[self.sysid]
-
-        append_combinators(self)
-
         self.origin = origin
         self.box = box#Box("origin", self.origin,
         self.flightline = flightline
+
+        append_combinators(self)
 
     def __str__(self):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=3, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=3, wfb=True, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
@@ -55,16 +54,21 @@ class Vehicle(Base):
         )
 
         conn.start()
-        veh = Vehicle(conn, sysid, compid).wait_for_boot()
-        origin = veh.get_GlobalOrigin(None, None).position
-        box = Box("origin", origin, 0.0) if box is None else box
+
+        veh = Vehicle(conn, sysid, compid)
+
+        if wfb:
+            veh = veh.wait_for_boot()
+            origin = veh.get_GlobalOrigin(None, None).position
+            box = Box("origin", origin, 0.0) if box is None else box
         
-        return veh.update(
-            origin=origin,
-            box=box,
-            flightline=FlightLine.from_box(box, origin)
-        )
-    
+            veh = veh.update(
+                origin=origin,
+                box=box,
+                flightline=FlightLine.from_box(box, origin)
+            )
+        return veh
+        
     @staticmethod
     def from_folder(outdir:Path, sysid: int, compid:int=1, box: Box=None):
         conn = Connection(outdir=outdir)
