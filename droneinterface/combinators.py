@@ -1,9 +1,9 @@
-from .messages import wrappers, wrappermap, AttitudeQuaternion, LocalPositionNED, ScaledIMU
-from flightanalysis import State
+from .messages import wrappers, wrappermap, AttitudeQuaternion, GlobalPositionInt, ScaledIMU
+from flightdata import State, Time
 from typing import List, Any, Dict
 from geometry import Transformation
-from flightanalysis.base import Time
 from threading import Thread
+import numpy as np
 
 combinators = {}
 
@@ -18,35 +18,39 @@ class Combinator:
 
     def _prepare(self, request: str, *args, **kwargs):
         if request == "last":
-            return tuple(self.vehicle.last_message(id, *args, **kwargs) for id in self.ids)
+            res = tuple(self.vehicle.last_message(id, *args, **kwargs) for id in self.ids)
         else:
-            return tuple(self.vehicle.async_messages(request, self.ids, *args, **kwargs))
-
+            res = tuple(self.vehicle.parallel_messages(request, self.ids, *args, **kwargs))
+        if np.any(np.array(res) == None):
+            raise Exception(f"got {[None if c is None else c.__name__ for c in res]} for {request} {self.ids}")
+        else:
+            return res
 #        return tuple(getattr(self.vehicle, f"{request}_{v.__name__}")() for v in self.wrappers.values())    
-   
+
 
 class StateMaker(Combinator):
     output = State
     wrappers = dict(
         matt=AttitudeQuaternion,
-        mpos=LocalPositionNED,
+        mpos=GlobalPositionInt,
         macc=ScaledIMU
     )
 
     def generate(self, request: str, *args, **kwargs) -> State:
         matt, mpos, macc=self._prepare(request, *args, **kwargs)
-        att = self.vehicle.flightline.transform_to.apply(matt.att)
-        to_body = lambda p : att.inverse().transform_point(self.vehicle.flightline.transform_to.apply(p))
+        
+        
+        to_body = Transformation(
+            self.vehicle.origin.rotation.transform_point(mpos.position - self.vehicle.origin.pos),
+            self.vehicle.origin.rotation * matt.att
+        )
         
         return State.from_transform(
-            Transformation(
-                self.vehicle.flightline.transform_to.apply(mpos.position),
-                att   
-            ),
+            to_body,
             time = Time.now(),
-            vel = to_body(mpos.velocity),
-            rvel = to_body(matt.rvel),
-            acc = to_body(macc.acc),
+            vel = to_body.apply(mpos.velocity),
+            rvel = to_body.apply(matt.rvel),
+            acc = to_body.apply(macc.acc),
             #racc = to_body()  # TODO no idea where to get this from
         )
     

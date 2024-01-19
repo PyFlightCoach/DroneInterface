@@ -1,28 +1,50 @@
 from __future__ import annotations
 from droneinterface.messages import mavlink
 import inspect
+from numbers import Number
 
+from pandas.api.types import is_list_like
 
 wrappers = {}
 
 class ParamLink:
-    def __init__(self, name: str, builder: type, params: list, tofunc=None, fromfunc=None) -> None:            
+    def __init__(self, name: str, builder: type, params: list, tofuncs=None, fromfuncs=None) -> None:            
         if len(params) > 1:
-            assert len(params) == len(builder.cols)
+            assert len(params) == len(builder.cols), f'Error making {name}, params={params}, cols={builder.cols}'
         self.name = name
         self.builder = builder
         self.params = params
         
-        self.tofunc = (lambda v: v) if tofunc is None else tofunc
-        self.fromfunc = (lambda v: v) if fromfunc is None else fromfunc
+        self.tofuncs = ParamLink._processfuncs(tofuncs, len(params))
+        self.fromfuncs = ParamLink._processfuncs(fromfuncs, len(params))
+
+    @staticmethod
+    def _processfuncs(funcs, n):
+        if not is_list_like(funcs):
+            funcs = [funcs for _ in range(n)]
+        
+        return [ParamLink._processfunc(func) for func in funcs]
+
+    @staticmethod
+    def _processfunc(func):
+        if inspect.isfunction(func):
+            return func
+        elif isinstance(func, Number):
+            return lambda v: v * func
+        elif func is None:
+            return lambda v: v
+        else:
+            raise TypeError(f"Invalid type {type(func)}")
 
     def read(self, msg: mavlink.MAVLink_message):
-        return self.builder(*[self.tofunc(getattr(msg, n)) for n in self.params])
+        return self.builder(*[tof(getattr(msg, n)) for tof, n in zip(self.tofuncs, self.params)])
 
     def write(self, value):
         #converts the DroneInterface type into a dict
+        
         val = [value] if len(self.params) == 1 else value.data[0]  # assumes it derives from pfc-geometry Base
-        return {name: self.fromfunc(value) for name, value in zip(self.params, val)}
+        vos = [ff(v) for ff, v in zip(self.tofuncs, val)]
+        return {name: value for name, value in zip(self.params, vos)}
     
     
 def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id: int=None):

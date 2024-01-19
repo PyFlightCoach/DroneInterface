@@ -17,10 +17,6 @@ import sys
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-
-
-
-
 msgkeys = [0, 26, 31, 32]
 
 
@@ -78,7 +74,7 @@ server_process = Process(target=run, args=(_x,*_ys))
 server_process.start()
 
 
-vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, 1, "log_tmp")
+vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, 1, "log_tmp")
 
 def update_traces():
 	while True:

@@ -8,11 +8,11 @@ import sys
 logging.basicConfig(level=logging.INFO)
 
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5763', 1)
+vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1)
 
 
-vehicle.set_mode(mavlink.PLANE_MODE_AUTO)
-vehicle.arm()
+#vehicle.set_mode(mavlink.PLANE_MODE_AUTO)
+#vehicle.arm()
 
 
 with vehicle.subscribe([mavlink.MAVLINK_MSG_ID_BATTERY_STATUS], 10):

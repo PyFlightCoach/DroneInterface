@@ -7,13 +7,23 @@ from typing import List, Dict
 from .wrapper_factory import wrapper_factory, wrappers
 
 
+# TODO something like this might be better:
+#        (
+#            "home", 
+#            lambda m: GPS(m.latitude/1e7, m.longitude/1e7, m.altitude/1e3), 
+#            dict(
+#                latitude = lambda g: g.lat * 1e7,
+#                longitude = lambda g: g.lat * 1e7,
+#                altitude  = lambda g: g.lat * 1e7,
+#            )
+#        )
+
 
 HomePosition = wrapper_factory(
     "HomePosition",
     mavlink.MAVLINK_MSG_ID_HOME_POSITION,
     [
-        ("home", GPS, ["latitude", "longitude"], lambda v : v/1e7, lambda v : v*1e7),
-        ("altitude", lambda v : v, ["altitude"], lambda v : v/1e3, lambda v : v*1e3),
+        ("home", GPS, ["latitude", "longitude", "altitude"], [1/1e7, 1/1e7, 1/1e3], [1e7, 1e7, 1e3]),
         ("position", Point, ["x", "y", "z"]),
         ("approach", Point, [f"approach_{d}" for d in list("xyz")]),
         ("q", Quaternion, ["q"])
@@ -25,8 +35,7 @@ GlobalOrigin = wrapper_factory(
     "GlobalOrigin",
     mavlink.MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN,
     [
-        ("position", GPS, ["latitude", "longitude"], lambda v : v/1e7, lambda v : v*1e7),
-        ("altitude", lambda v : v, ["altitude"], lambda v : v/1e3, lambda v : v*1e3),
+        ("position", GPS, ["latitude", "longitude", "altitude"], [1/1e7, 1/1e7, 1/1e3], [1e7, 1e7, 1e3]),
     ]
 )
 
@@ -76,10 +85,9 @@ GlobalPositionInt = wrapper_factory(
     "GlobalPositionInt",
     mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
     [
-        ("position", GPS, ["lat", "lon"], lambda v : v/1e7, lambda v : v*1e7),
-        ("alt", lambda v : v, ["alt"], lambda v : v/1e3, lambda v : v*1e3),
-        ("agl", lambda v : v, ["relative_alt"], lambda v : v/1e3, lambda v : v*1e3),
-        ("velocity", Point, ["vx", "vy", "vz"], lambda v : v/100, lambda v : v*100),
+        ("position", GPS, ["lat", "lon", "alt"], [1/1e7, 1/1e7, 1/1e3], [1e7, 1e7, 1e3]),
+        ("agl", lambda v : v, ["relative_alt"], 1/1e3, 1e3),
+        ("velocity", Point, ["vx", "vy", "vz"], 1/100, 100),
         ("heading", lambda v : v, ["hdg"], lambda v : np.radians(v/10), lambda v : np.degrees(v)*10),
     ]
 )
@@ -109,8 +117,7 @@ PositionTargetGlobal = wrapper_factory(
     "PositionTargetGlobal",
     mavlink.MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT,
     [
-        ("position", GPS, ["lat_int", "lon_int"], lambda v : v/1e7, lambda v : v*1e7),
-        ("alt", lambda v : v, ["alt"]),
+        ("position", GPS, ["lat_int", "lon_int", "alt"], [1/1e7, 1/1e7, 1], [1e7, 1e7, 1]),
         ("velocity", Point, ["vx", "vy", "vz"]),
         ("acceleration", Point, ["afx", "afy", "afz"])
     ]
@@ -131,8 +138,7 @@ GPSRawInt = wrapper_factory(
     "GPSRawInt",
     mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,
     [
-        ("position", GPS, ["lat", "lon"], lambda v : v/1e7, lambda v : v*1e7),
-        ("alt", lambda v : v, ["alt"], lambda v : v/1e3, lambda v : v*1e3),
+        ("position", GPS, ["lat", "lon", "alt"], [1/1e7, 1/1e7, 1], [1e7, 1e7, 1]),
     ],
     dict(
         gps_fix=property(lambda self : mavlink.enums["GPS_FIX_TYPE"][self.fix_type])
@@ -154,7 +160,7 @@ BatteryStatus = wrapper_factory(
     mavlink.MAVLINK_MSG_ID_BATTERY_STATUS,
     [
         ("voltage", lambda v: v, ["voltages"], lambda v: v[0] / 1000,  lambda v : [v * 1000] + [0 for _ in range(9)]),
-        ("current", lambda v: v, ["current_battery"], lambda v: v/100, lambda v : v * 100),
+        ("current", lambda v: v, ["current_battery"], 1/100, 100),
     ],
     dict(
         watts = property(lambda self: self.voltage * self.current)

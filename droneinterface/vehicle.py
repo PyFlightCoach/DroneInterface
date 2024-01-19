@@ -2,20 +2,19 @@
 If wrappers do not exist for the requested message then the original message object is returned
 """
 from __future__ import annotations
-from collections.abc import Callable, Iterable, Mapping
 from pymavlink import mavutil
-from . import mavlink
+
 from typing import Any, Union, List
 from time import time, sleep
-from .messages import wrappers, mdefs, wrappermap
-from threading import Thread, Event
+from .messages import wrappers, wrappermap
+from threading import Thread
 import logging
 from .commands import command_map
-from flightanalysis import Box, State, FlightLine
-from geometry import Coord, GPS, Point
+from flightdata import Origin, State
+import geometry as g
 from .combinators import append_combinators
 import inspect
-from . import Base
+from . import Base, mavlink
 from . import Connection, LastMessage
 from pathlib import Path
 from functools import partial
@@ -26,7 +25,7 @@ class TimeoutError(Exception):
 
 
 class Vehicle(Base):
-    def __init__(self, conn: Connection, sysid: int, compid:int, origin: GPS=None, box: Box=None, flightline: FlightLine=None) -> None:
+    def __init__(self, conn: Connection, sysid: int, compid:int, origin: Origin=None) -> None:
         super().__init__()
         self.conn: Connection = conn
         self.sysid = sysid
@@ -35,16 +34,14 @@ class Vehicle(Base):
             self.conn.msgs[self.sysid] = {}
         self.msgs = self.conn.msgs[self.sysid]
         self.origin = origin
-        self.box = box#Box("origin", self.origin,
-        self.flightline = flightline
-
+    
         append_combinators(self)
 
     def __str__(self):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, box: Box=None, store_messages="none", n=3, wfb=True, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, origin: Origin=None, store_messages="none", n=3, wfb=True, **kwargs) -> Vehicle:
         logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
@@ -59,27 +56,22 @@ class Vehicle(Base):
 
         if wfb:
             veh = veh.wait_for_boot()
-            origin = veh.get_GlobalOrigin(None, None).position
-            box = Box("origin", origin, 0.0) if box is None else box
+            
+            origin = Origin("origin", veh.get_GlobalOrigin(None, None).position, 0.0) if origin is None else origin
         
             veh = veh.update(
                 origin=origin,
-                box=box,
-                flightline=FlightLine.from_box(box, origin)
             )
         return veh
         
     @staticmethod
-    def from_folder(outdir:Path, sysid: int, compid:int=1, box: Box=None):
+    def from_folder(outdir:Path, sysid: int, compid:int=1, origin: Origin=None):
         conn = Connection(outdir=outdir)
         veh = Vehicle(conn, sysid, compid)
-        origin = veh.last_globalorigin().position
-        box = Box("origin", origin, 0.0) if box is None else box
+        origin = Origin("origin", veh.last_globalorigin().position, 0.0) if origin is None else origin
 
         return veh.update(
-            origin=origin,
-            box=box,
-            flightline=FlightLine.from_box(box, origin)
+            origin=origin
         )
 
 
@@ -201,7 +193,7 @@ class Vehicle(Base):
     def subscribe(self, ids: List[int], rate: int):
         return Observer(self, ids, rate)
     
-    def async_messages(self, method: str, ids, *args, **kwargs):
+    def parallel_messages(self, method: str, ids, *args, **kwargs):
         
         ths = [MessageWaiter(getattr(self, f"{method}_message"), id, *args, **kwargs) for id in ids]
         
@@ -259,7 +251,6 @@ class Observer(Thread):
         while not self._is_stopped:
             for rh in self.base_rates.values():
                 rh.set_rate(self.veh)
-            sleep(5)
 
     def stop(self):
         self._is_stopped = True

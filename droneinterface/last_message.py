@@ -17,6 +17,7 @@ class LastMessage:
         self.last_time = None
         self.colmap = colmap 
         self.rev_colmap = rev_colmap
+        self.rate = 0
         self.outfile = outfile
         if self.outfile is not None:
             if not self.outfile.exists():
@@ -29,6 +30,9 @@ class LastMessage:
                         self.history.appendleft(self.create_message(df.iloc[-(i+1)]))
             self.io = open(self.outfile, "a")
 
+    def __repr__(self):
+        return f'LastMessage(age={time()-self.last_time}, rate={self.rate}, msg={self.last_message})'
+    
     @property
     def times(self) -> List[float]:
         return [m._timestamp for m in self.history]
@@ -85,7 +89,11 @@ class LastMessage:
 
     def receive_message(self, msg):        
         self.history.append(msg)
-        self.last_time = time()
+        t = time()
+        n = len(self.history)
+        if not self.last_time is None:
+            self.rate = self.rate * (n - 1) / n +  1 / (n * (t - self.last_time))
+        self.last_time = t
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
             print(",".join(data), file=self.io)
@@ -96,10 +104,10 @@ class LastMessage:
         msg._timestamp = data.name
         return msg
 
-    @property
-    def rate(self):
-        rate = np.round(1 / np.mean(np.diff(self.times)), 0)
-        return 0 if np.isnan(rate) else rate
+   # @property
+   # def rate(self):
+   #     rate = np.round(1 / np.mean(np.diff(self.times)), 0)
+   #     return 0 if np.isnan(rate) else rate
 
     def all_messages(self) -> pd.DataFrame:
         return pd.read_csv(self.outfile).set_index("timestamp")

@@ -6,7 +6,7 @@ import sys
 import os
 
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5760', 1, 1, "log_tmp")
+vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, 1, "log_tmp")
 
 
 

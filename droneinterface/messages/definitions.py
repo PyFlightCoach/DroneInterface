@@ -1,6 +1,6 @@
 
 from droneinterface.messages import mavlink
-from flightanalysis.base.collection import Collection
+from flightdata import Collection
 from typing import Union
 
 
