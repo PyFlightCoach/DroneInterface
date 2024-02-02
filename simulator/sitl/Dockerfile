@@ -1,5 +1,7 @@
 # Perform multistage build to avoid a pile of ardupilot deps
-FROM ardupilot/ardupilot-dev-chibios as ardupilot_builder
+#FROM ardupilot/ardupilot-dev-chibios as ardupilot_builder
+
+FROM ardupilot/ardupilot-dev-base
 
 ARG VEHICLE=plane
 ARG BRANCH=ArduPlane-stable
@@ -12,12 +14,10 @@ RUN git clone --recurse-submodules --depth 1 --shallow-submodules -j4 \
 WORKDIR /src/ardupilot
 RUN ./waf configure && ./waf ${VEHICLE}
 
-FROM ardupilot/ardupilot-dev-base
+#
 
 ARG VEHICLE=plane
 
-COPY --from=ardupilot_builder /src/ardupilot/build /src/ardupilot/build
-COPY --from=ardupilot_builder /src/ardupilot/Tools /src/ardupilot/Tools
 
 #get JSBSim
 RUN git clone https://github.com/JSBSim-Team/jsbsim.git /src/jsbsim

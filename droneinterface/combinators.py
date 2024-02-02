@@ -1,7 +1,7 @@
 from .messages import wrappers, wrappermap, AttitudeQuaternion, GlobalPositionInt, ScaledIMU
-from flightdata import State, Time
+from flightdata import State
 from typing import List, Any, Dict
-from geometry import Transformation
+from geometry import Transformation, Time
 from threading import Thread
 import numpy as np
 
