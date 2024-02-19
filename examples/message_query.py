@@ -2,12 +2,12 @@ from droneinterface.vehicle import Vehicle
 from droneinterface.messages import mavlink
 from time import sleep
 from flightplotting import plotsec
-import logging
+import logger
 import sys
 from json import dumps
 import traceback
 import os
-logging.basicConfig(level=logging.INFO)
+logger.basicConfig(level=logger.INFO)
 
 
 

@@ -3,9 +3,9 @@ from pymavlink import mavutil
 from pathlib import Path
 import shutil
 import sys
-import logging
+import logger
 
-logging.basicConfig(level=logging.DEBUG)
+logger.basicConfig(level=logger.DEBUG)
 
 
 

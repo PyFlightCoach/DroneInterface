@@ -3,7 +3,7 @@ from droneinterface.messages import mavlink
 from geometry import Point, GPS, Quaternion
 from pymavlink import mavutil
 import numpy as np
-from typing import List, Dict
+from typing import Dict
 from .wrapper_factory import wrapper_factory, wrappers
 
 
@@ -46,7 +46,7 @@ Heartbeat = wrapper_factory(
     [],
     dict(
         mode = property(lambda self: mavutil.mode_mapping_bynumber(self.type)[self.custom_mode]),
-        initialised = property(lambda self: not self.mode in [None, 'INITIALISING', 'MAV']),
+        initialised = property(lambda self: self.mode not in [None, 'INITIALISING', 'MAV']),
         #mav_mode=property(lambda self : mavlink.enums["MAV_MODE"][self.custom_mode]),
         armed=property(lambda self: (self.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0)
     )
@@ -169,8 +169,6 @@ BatteryStatus = wrapper_factory(
 
 
 
-
-
 _ignore = list(np.zeros((18), dtype=int))
 _release = list(np.full(9, 2**16)) + list(np.full(9, 2**16-1))
 def set_channels(targ_sys, targ_comp, channels: Dict[int, int], others:str="ignore") -> RCOverride:
@@ -195,7 +193,7 @@ RCOverride = wrapper_factory(
 
 #wrap all the remaining messages in wrappers that do nothing:
 for msgid, msgcls in mavlink.mavlink_map.items():
-    if not msgid in wrappers:
+    if msgid not in wrappers:
         wrapper_factory(
             ''.join(word.title() for word in msgcls.__name__[7:-7].split("_")),
             msgid, []

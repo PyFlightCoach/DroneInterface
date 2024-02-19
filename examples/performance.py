@@ -2,10 +2,10 @@ from droneinterface.vehicle import Vehicle
 from droneinterface.messages import mavlink
 from time import sleep
 from flightplotting import plotsec
-import logging
+import logger
 import sys
 
-logging.basicConfig(level=logging.INFO)
+logger.basicConfig(level=logger.INFO)
 
 #setup the connection
 vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1)

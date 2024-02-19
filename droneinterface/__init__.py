@@ -1,8 +1,15 @@
-from .messages import mavlink
 import logging
+logger = logging.getLogger('droneinterface')
+
+pmllogger = logging.getLogger('pymavlink')
+pmllogger.setLevel(logging.CRITICAL)
+
+from .messages import mavlink
 from pathlib import Path
 import shutil
 from .connection import Connection, LastMessage
+
+
 
 class Base:
     def _msg(self, msg):

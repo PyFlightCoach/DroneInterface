@@ -3,15 +3,13 @@ If wrappers do not exist for the requested message then the original message obj
 """
 from __future__ import annotations
 from pymavlink import mavutil
-
-from typing import Any, Union, List
+from typing import List
 from time import time, sleep
 from .messages import wrappers, wrappermap
 from threading import Thread
-import logging
+from . import logger
 from .commands import command_map
-from flightdata import Origin, State
-import geometry as g
+from flightdata import Origin
 from .combinators import append_combinators
 import inspect
 from . import Base, mavlink
@@ -30,7 +28,7 @@ class Vehicle(Base):
         self.conn: Connection = conn
         self.sysid = sysid
         self.compid = compid
-        if not self.sysid in self.conn.msgs:
+        if self.sysid not in self.conn.msgs:
             self.conn.msgs[self.sysid] = {}
         self.msgs = self.conn.msgs[self.sysid]
         self.origin = origin
@@ -41,13 +39,12 @@ class Vehicle(Base):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, origin: Origin=None, store_messages="none", n=3, wfb=True, **kwargs) -> Vehicle:
-        logging.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
+    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, origin: Origin=None, store_messages="none", n=3, wfb=True, timeout=5, **kwargs) -> Vehicle:
+        logger.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection(
             mavutil.mavlink_connection(constr, **kwargs), 
             None if (outdir is None or store_messages=="none") else Connection.create_folder(outdir),
-            store_messages,
-            n
+            store_messages, n, timeout
         )
 
         conn.start()
@@ -88,13 +85,13 @@ class Vehicle(Base):
             _spl = name.split("_")
             if _spl[1] in wrappermap:
                 if _spl[0] in ["last", "get", "next", "_last", "_get", "_next"]:
-                    return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)    
+                    return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)
         if name in command_map:
             return lambda *args : self.send_command(*command_map[name](*args))
         raise AttributeError(f"{name} not found in message wrappers or command map")
     
     def wait_for_boot(self) -> Vehicle:
-        logging.info(self._msg("Waiting for boot"))
+        logger.info(self._msg("Waiting for boot"))
 
         tests = {
             "IMU initialised": lambda : self.last_heartbeat().initialised,
@@ -109,10 +106,10 @@ class Vehicle(Base):
                     break
                 except Exception as e:
                     pass
-                logging.debug(self._msg(f"Waiting for {name}"))
+                logger.debug(self._msg(f"Waiting for {name}"))
                 sleep(0.5)
 
-        logging.info(self._msg("Booted"))
+        logger.info(self._msg("Booted"))
         return self
 
     def send_command(self, command: int, *params):
@@ -122,7 +119,7 @@ class Vehicle(Base):
         ))
         
     def send_message(self, msg):
-        logging.debug(self._msg(f"Sending message {str(msg)}"))
+        logger.debug(self._msg(f"Sending message {str(msg)}"))
         self.conn.master.mav.send(msg if isinstance(msg, mavlink.MAVLink_message) else msg.encoder())
     
     def schedule(self, method, rate) -> Repeater:
@@ -134,61 +131,75 @@ class Vehicle(Base):
             lm = self.msgs[id]
             if max_age is None:
                 return lm
-            if lm.last_time + max_age > time():
+            elif lm.last_time + max_age > time():
                 return lm
-
+            else:
+                raise Exception(f'last message {id} is too old')
+        else:
+            raise Exception(f'Message {id} has not been received yet')
+        
     def _next_message(self, id, timeout=0.2) -> LastMessage:
         """Wait timeout seconds for the next message"""
         event = self.conn.add_waiter(self.sysid, id)
-        event.wait(timeout)
-
-        return self._last_message(id, None)
-    
+        if event.wait(timeout):
+            return self._last_message(id, None)
+        else:
+            raise Exception(f'timeout after {timeout} seconds waiting for message {id}')
+        
     def _get_message(self, id, timeout=0.2, max_age=0.1) -> LastMessage:
         """get a message. 
         first try younger than max_age, 
         then wait for the next one, 
         request periodically while waiting"""
         timeout = 9999 if timeout is None else timeout
-        lm = self._last_message(id, max_age)
-        if not lm is None:
-            return lm
-        elif not max_age is None:
-            lm = self._last_message(id, None)
+        try:
+            return self._last_message(id, max_age)
+        except Exception:
+            pass
+
+        if max_age is not None:
+            try:
+                return self._last_message(id, None)
+            except Exception:
+                pass
         
         stop = time() + timeout
 
-        msgwaiter = self.conn.add_waiter(self.sysid, id)#MessageWaiter(self._next_message, id, timeout)
+        msgwaiter = self.conn.add_waiter(self.sysid, id)
 
         lastrequest=0
 
+        msg=None
         while time() < stop:
             if msgwaiter.is_set():
                 msg = self._last_message(id, None)
                 break
             if time() > lastrequest + min(timeout, 1):
-                if lm is None:
+                if msg is None:
                     self.request_message(id)
                 else:
-                    if lm.rate < (1/(min(timeout, 2))):
+                    if msg.rate < (1/(min(timeout, 2))):
                         self.request_message(id)
                 lastrequest = time()
         else:
-            logging.debug(self._msg(f"Failed to receive msg {str(id)} after {timeout} seconds"))
+            logger.debug(self._msg(f"Failed to receive msg {str(id)} after {timeout} seconds"))
             msg=None
         
         self.conn.remove_waiter(self.sysid, id)
 
-        logging.debug(self._msg(f"Received message: {str(msg)}"))
+        logger.debug(self._msg(f"Received message: {str(msg)}"))
         return msg
     
     def _message(self, method: str, id, *args, **kwargs):
         msg = getattr(self, f"_{method}_message")(id, *args, **kwargs)
-        return msg.wrapper() if not msg is None else None
+        return msg.wrapper() if msg is not None else None
 
-    last_message = lambda self, id, *args, **kwargs: self._message("last", id, *args, **kwargs)
-    next_message = lambda self, id, *args, **kwargs: self._message("next", id, *args, **kwargs)
-    get_message = lambda self, id, *args, **kwargs: self._message("get", id, *args, **kwargs)
+    def last_message(self, id, *args, **kwargs):
+            return self._message("last", id, *args, **kwargs)
+    def next_message(self, id, *args, **kwargs):
+            return self._message("next", id, *args, **kwargs)
+    def get_message(self, id, *args, **kwargs):
+            return self._message("get", id, *args, **kwargs)
 
     def subscribe(self, ids: List[int], rate: int):
         return Observer(self, ids, rate)
@@ -200,6 +211,7 @@ class Vehicle(Base):
         while any([th.is_alive() for th in ths]):
             pass
         return [th.result for th in ths]
+
 
 
 class MessageWaiter(Thread):
@@ -230,7 +242,7 @@ class RateHistory:
     def set_rate(self, veh: Vehicle):
         rate = self.current_rate()
         if rate < self.desired_rate:
-            logging.debug(f"increasing rate for msg {self.id} from {rate} to {self.desired_rate}")
+            logger.debug(f"increasing rate for msg {self.id} from {rate} to {self.desired_rate}")
             veh.set_message_rate(self.id, self.desired_rate * 1.5)
 
     def reset_rate(self, veh: Vehicle):
@@ -278,7 +290,7 @@ class Repeater(Thread):
             if time() - last_call >= 1 / self.rate:
                 self.method()
                 last_call = time()
-        logging.info("Repeater Stopped")
+        logger.info("Repeater Stopped")
     
     def stop(self):
         self._is_stopped = True

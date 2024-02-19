@@ -1,6 +1,6 @@
 
-import logging
-logging.basicConfig(level=logging.INFO)
+import logger
+logger.basicConfig(level=logger.INFO)
 
 
 import titan
@@ -22,4 +22,4 @@ while True:
         
     except Exception as ex:
 
-        logging.exception(ex)
+        logger.exception(ex)

@@ -4,19 +4,25 @@ from typing import Union, List, Dict
 from time import time, sleep
 from datetime import datetime
 from threading import Thread, Event
-import logging
+from . import logger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import numpy as np
 import pandas as pd
-import traceback
 import sys
-
 from .last_message import LastMessage
 
 
 class Connection(Thread):
-    def __init__(self, master: mavutil.mavfile=None, outdir: Path=None, store_messages: Union[List[int], str]="all", append=True, n=2):
+    def __init__(
+            self, 
+            master: mavutil.mavfile=None, 
+            outdir: Path=None, 
+            store_messages: Union[List[int], str]="all", 
+            append=True, 
+            n=2,
+            timeout=5
+        ):
         super().__init__(daemon=True)
         self.master = master
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
@@ -28,15 +34,14 @@ class Connection(Thread):
             if not append:
                 raise Exception("Outdir is not empty. Provide an empty directory or set append=True")
             else:
-                #TODO check the csv is in the right format
                 for f in outdir.glob("*.csv"):
                     sysid = int(f.name.split("_")[0])
-                    if not sysid in self.msgs:
+                    if sysid not in self.msgs:
                         self.msgs[sysid] = {}
                     lm = LastMessage.build_csv(f)
-                    self.msgs[sysid][lm.id] = lm    
+                    self.msgs[sysid][lm.id] = lm
         self.n = n
-
+        self.timeout = timeout
         self.store_messages = store_messages
         if isinstance(self.store_messages, list):
             self.check_store = lambda id: id in self.store_messages
@@ -66,6 +71,7 @@ class Connection(Thread):
         raise AttributeError(f"{name} not found in {self}")
 
     def run(self):
+        last_t = time()
         while self.is_alive():
             try:
                 msg = self.master.recv_msg()
@@ -73,16 +79,20 @@ class Connection(Thread):
                     if self.source == "DF":
                         break
                     else:
+                        if self.timeout is not None:
+                            if time() - last_t > self.timeout:
+                                break
+                            last_t = time()
                         continue
                 system_id = self._system_from_message(msg)
-                if not system_id in self.msgs:
+                if system_id not in self.msgs:
                     self.msgs[system_id] = {}
-                if not system_id in self.waiters:
+                if system_id not in self.waiters:
                     self.waiters[system_id] = {}
                 msg_index = self.msgs[system_id]
                 
                 msg_id = self._id_from_message(msg)
-                if not msg_id in msg_index:
+                if msg_id not in msg_index:
                     msg_index[msg_id] = self.builder(
                         msg, 
                         (self.outdir / f"{system_id}_{msg_id}.csv") if self.check_store(msg_id) else None,
@@ -98,10 +108,10 @@ class Connection(Thread):
                     waiter_index[msg_id].set()
                 
             except Exception as ex:
-                logging.debug(traceback.format_exc(ex))
+                raise Exception(f'Connection Error {ex}') from ex
 
     def add_waiter(self, systemid, msgid) -> Event:
-        if not systemid in self.waiters:
+        if systemid not in self.waiters:
             self.waiters[systemid] = {}
         waiter_index = self.waiters[systemid]
         if msgid in waiter_index:
@@ -142,8 +152,6 @@ class Connection(Thread):
         return conn.join_messages(store_messages)
 
     def join_messages(self, ids: list, systemid:int=1) -> pd.DataFrame:
-        keys = [k for k in keys if k in self.msgs.keys()]
-
         joined_log = self.msgs[systemid][ids[0]].all_messages()
         joined_log.columns = [f"{ids}_{c}" for c in joined_log.columns]
         for id in ids[1:]:
@@ -163,7 +171,7 @@ class Connection(Thread):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logger.basicConfig(level=logger.INFO)
 
     conn = Connection(
         mavutil.mavlink_connection('tcp:127.0.0.1:5760'),
@@ -171,10 +179,8 @@ if __name__ == "__main__":
     )
     conn.start()
     
-    import plotly.express as px
-    
     while True:
-        logging.info({k: int(v.frequency) for k, v in conn.msgs.items()})
+        logger.info({k: int(v.frequency) for k, v in conn.msgs.items()})
         sleep(1)
     
 

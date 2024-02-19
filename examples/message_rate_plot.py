@@ -12,10 +12,10 @@ from dash.dependencies import Input, Output
 from multiprocessing import Process, Array
 from threading import Thread
 from json import dumps
-import logging
+import logger
 import sys
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logger.basicConfig(level=logger.INFO)
+logger.getLogger('werkzeug').setLevel(logger.ERROR)
 
 msgkeys = [0, 26, 31, 32]
 

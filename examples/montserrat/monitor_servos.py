@@ -1,9 +1,9 @@
 import titan
-import logging
+import logger
 import sys
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logger.basicConfig(level=logger.INFO)
 
     vehicle = titan.titan("flight_5_sim", sim=True)
     last_flap = 0

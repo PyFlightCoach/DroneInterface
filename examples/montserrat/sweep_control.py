@@ -1,4 +1,4 @@
-import logging
+import logger
 from geometry import PZ, Point
 import numpy as np
 import pandas as pd
@@ -57,7 +57,7 @@ class ControlSweep:
             self.stop()
             self.save_record(self.lr)
 
-            logging.info(f"Setting Control to {self.positions[cr]}")
+            logger.info(f"Setting Control to {self.positions[cr]}")
             self.repeater = self.command(list(self.data.keys())[cr])
             self.lr = cr
 
@@ -112,7 +112,7 @@ class ControlSweep:
 
 if __name__ == "__main__":
 
-    logging.basicConfig(level=logging.INFO)
+    logger.basicConfig(level=logger.INFO)
     sim = False
     flightid=12
 
@@ -136,11 +136,11 @@ if __name__ == "__main__":
             new_flap = vehicle.last_SERVOOUTPUTRAW().servo9_raw
             if not new_flap == last_flap:
                 last_flap = new_flap
-                logging.info(f"new servo 9 position = {last_flap}")
+                logger.info(f"new servo 9 position = {last_flap}")
 
             next_wp = vehicle.last_missionCurrent().seq
             if not next_wp == last_wp or last_wp == 0:
-                logging.info(f"next wp {next_wp}")
+                logger.info(f"next wp {next_wp}")
                 target = vehicle.next_PositionTargetGlobal(None)
                 target_point = vehicle.box.gps_to_point(target.position) + PZ(target.alt) 
                 last_wp = next_wp
@@ -161,7 +161,7 @@ if __name__ == "__main__":
                 if new_record:
                     new_record = False
                     time_to_next_wp = abs(path)[0] / abs(st.vel)[0]
-                    logging.info(f"next wp distance = {abs(path)[0]}, vel = {abs(st.vel)[0]}, time = {time_to_next_wp}")
+                    logger.info(f"next wp distance = {abs(path)[0]}, vel = {abs(st.vel)[0]}, time = {time_to_next_wp}")
                     if time_to_next_wp > 60:
 
                         records.append(ControlSweep(
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                             outdir=vehicle.conn.outdir / f"sweep_{len(records)}"
                         ))
                         
-                        logging.info(f"start recording {len(records)}")
+                        logger.info(f"start recording {len(records)}")
                     
                 if len(records) > 0:    
                     records[-1].update(

@@ -1,8 +1,7 @@
-from .messages import wrappers, wrappermap, AttitudeQuaternion, GlobalPositionInt, ScaledIMU
+from .messages import AttitudeQuaternion, GlobalPositionInt, ScaledIMU
 from flightdata import State
-from typing import List, Any, Dict
+from typing import List
 from geometry import Transformation, Time
-from threading import Thread
 import numpy as np
 
 combinators = {}
@@ -17,11 +16,11 @@ class Combinator:
         combinators[cls.output.__name__] = cls  
 
     def _prepare(self, request: str, *args, **kwargs):
-        if request == "last":
-            res = tuple(self.vehicle.last_message(id, *args, **kwargs) for id in self.ids)
-        else:
+        try:
             res = tuple(self.vehicle.parallel_messages(request, self.ids, *args, **kwargs))
-        if np.any(np.array(res) == None):
+        except Exception as e:
+            raise Exception(f"got {e} for {request} {self.ids}") from e
+        if np.any(np.array(res) is None):
             raise Exception(f"got {[None if c is None else c.__name__ for c in res]} for {request} {self.ids}")
         else:
             return res
