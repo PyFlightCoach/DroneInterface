@@ -1,8 +1,20 @@
-import logging
-logger = logging.getLogger('droneinterface')
+from loguru import logger
+import sys
+logger.disable("droneinterface")
 
-pmllogger = logging.getLogger('pymavlink')
-pmllogger.setLevel(logging.CRITICAL)
+
+def enable_logging(level='INFO'):
+    logger.enable("droneinterface")
+    logger.remove(0)
+    logger.add(
+    sys.stdout, colorize=True, level=level,
+        format="<green>{name}, {module}, {thread}, {time:HH:mm:ss}</green> <level>{message}</level>"
+    )
+
+def configure_logging(*args, **kwargs):
+    logger.enable("droneinterface")
+    logger.remove(0)
+    logger.add(*args, **kwargs)
 
 from .messages import mavlink
 from pathlib import Path

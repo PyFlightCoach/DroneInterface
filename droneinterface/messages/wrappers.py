@@ -5,19 +5,7 @@ from pymavlink import mavutil
 import numpy as np
 from typing import Dict
 from .wrapper_factory import wrapper_factory, wrappers
-
-
-# TODO something like this might be better:
-#        (
-#            "home", 
-#            lambda m: GPS(m.latitude/1e7, m.longitude/1e7, m.altitude/1e3), 
-#            dict(
-#                latitude = lambda g: g.lat * 1e7,
-#                longitude = lambda g: g.lat * 1e7,
-#                altitude  = lambda g: g.lat * 1e7,
-#            )
-#        )
-
+from .mav_bitmap import mav_bitmap
 
 HomePosition = wrapper_factory(
     "HomePosition",
@@ -43,12 +31,15 @@ GlobalOrigin = wrapper_factory(
 Heartbeat = wrapper_factory(
     "Heartbeat",
     mavlink.MAVLINK_MSG_ID_HEARTBEAT,
-    [],
+    [
+        ('type', mav_bitmap('MAV_TYPE'), ['type']),
+        ('base_mode', mav_bitmap('MAV_MODE_FLAG'), ['base_mode']),
+        ('system_status', mav_bitmap('MAV_STATE'), ['system_status']),
+    ],
     dict(
-        mode = property(lambda self: mavutil.mode_mapping_bynumber(self.type)[self.custom_mode]),
+        mode = property(lambda self: mavutil.mode_mapping_bynumber(self.type.value)[self.custom_mode]),
         initialised = property(lambda self: self.mode not in [None, 'INITIALISING', 'MAV']),
-        #mav_mode=property(lambda self : mavlink.enums["MAV_MODE"][self.custom_mode]),
-        armed=property(lambda self: (self.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0)
+        armed=property(lambda self: self.base_mode.mav_mode_flag_safety_armed)
     )
 )
 
@@ -167,7 +158,15 @@ BatteryStatus = wrapper_factory(
     )
 )
 
-
+SysStatus = wrapper_factory(
+    "SysStatus",
+    mavlink.MAVLINK_MSG_ID_SYS_STATUS,
+    [
+        ('sensor_health', mav_bitmap('MAV_SYS_STATUS_SENSOR'), ['onboard_control_sensors_health']),
+        ('sensor_present', mav_bitmap('MAV_SYS_STATUS_SENSOR'), ['onboard_control_sensors_present']),
+        ('sensor_enabled', mav_bitmap('MAV_SYS_STATUS_SENSOR'), ['onboard_control_sensors_enabled'])
+    ],
+)
 
 _ignore = list(np.zeros((18), dtype=int))
 _release = list(np.full(9, 2**16)) + list(np.full(9, 2**16-1))

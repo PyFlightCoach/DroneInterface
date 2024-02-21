@@ -14,7 +14,7 @@ class ParamLink:
         self.name = name
         self.builder = builder
         self.params = params
-        
+
         self.tofuncs = ParamLink._processfuncs(tofuncs, len(params))
         self.fromfuncs = ParamLink._processfuncs(fromfuncs, len(params))
 
@@ -41,9 +41,8 @@ class ParamLink:
 
     def write(self, value):
         #converts the DroneInterface type into a dict
-        
         val = [value] if len(self.params) == 1 else value.data[0]  # assumes it derives from pfc-geometry Base
-        vos = [ff(v) for ff, v in zip(self.tofuncs, val)]
+        vos = [ff(v) for ff, v in zip(self.fromfuncs, val)]
         return {name: value for name, value in zip(self.params, vos)}
     
     
@@ -78,7 +77,6 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
     
     def encoder(self) -> MsgCls:
         kws = [l.write(getattr(self, l.name)) for l in links]
-
         return MsgCls(**{k: v for kw in kws for k, v in kw.items()})
     
     def setter(self, target_system, target_component):

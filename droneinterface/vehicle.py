@@ -2,12 +2,11 @@
 If wrappers do not exist for the requested message then the original message object is returned
 """
 from __future__ import annotations
-from pymavlink import mavutil
-from typing import List
+from typing import Union
 from time import time, sleep
 from .messages import wrappers, wrappermap
 from threading import Thread
-from . import logger
+from loguru import logger
 from .commands import command_map
 from flightdata import Origin
 from .combinators import append_combinators
@@ -39,26 +38,17 @@ class Vehicle(Base):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, outdir: Path=None, origin: Origin=None, store_messages="none", n=3, wfb=True, timeout=5, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int, compid:int=1, wfb=True, origin: Origin=None, **kwargs) -> Vehicle:
         logger.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
-        conn = Connection(
-            mavutil.mavlink_connection(constr, **kwargs), 
-            None if (outdir is None or store_messages=="none") else Connection.create_folder(outdir),
-            store_messages, n, timeout
-        )
-
+        conn = Connection.connect(constr, **kwargs)
         conn.start()
 
         veh = Vehicle(conn, sysid, compid)
-
         if wfb:
             veh = veh.wait_for_boot()
-            
             origin = Origin("origin", veh.get_GlobalOrigin(None, None).position, 0.0) if origin is None else origin
-        
-            veh = veh.update(
-                origin=origin,
-            )
+            veh = veh.update(origin=origin)
+
         return veh
         
     @staticmethod
@@ -70,7 +60,6 @@ class Vehicle(Base):
         return veh.update(
             origin=origin
         )
-
 
     def update(self, **kwargs) -> Vehicle:
         args = inspect.getfullargspec(self.__class__.__init__)[0]
@@ -99,15 +88,18 @@ class Vehicle(Base):
             "EKF happy": lambda : self.last_EKFStatus().is_good
         }
         for name, test in tests.items():
+            informed = False
             while True:
                 try:
-                    if not test():
-                        continue
-                    break
-                except Exception as e:
+                    if test():
+                        if informed:
+                            logger.debug(self._msg(f"Got {name}"))        
+                        break
+                except Exception:
                     pass
-                logger.debug(self._msg(f"Waiting for {name}"))
-                sleep(0.5)
+                if not informed:
+                    logger.debug(self._msg(f"Waiting for {name}"))
+                    informed = True
 
         logger.info(self._msg("Booted"))
         return self
@@ -201,7 +193,9 @@ class Vehicle(Base):
     def get_message(self, id, *args, **kwargs):
             return self._message("get", id, *args, **kwargs)
 
-    def subscribe(self, ids: List[int], rate: int):
+    def subscribe(self, ids: Union[list[int], int], rate: int):
+        if isinstance(ids, int):
+            ids = [ids]
         return Observer(self, ids, rate)
     
     def parallel_messages(self, method: str, ids, *args, **kwargs):
@@ -250,7 +244,7 @@ class RateHistory:
 
 
 class Observer(Thread):
-    def __init__(self, veh: Vehicle, ids: List[int], rate: int) -> None:
+    def __init__(self, veh: Vehicle, ids: list[int], rate: int) -> None:
         super().__init__(daemon=True)
         self.veh = veh
         self.base_rates = {id: RateHistory(self.veh, id, rate) for id in ids}

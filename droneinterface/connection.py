@@ -4,7 +4,7 @@ from typing import Union, List, Dict
 from time import time, sleep
 from datetime import datetime
 from threading import Thread, Event
-from . import logger
+from loguru import logger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import numpy as np
@@ -62,6 +62,14 @@ class Connection(Thread):
 
         self.waiters = {}
 
+    @staticmethod
+    def connect(constr, outdir: Path=None, store_messages: Union[List[int], str]="all", append=True, n=2, timeout=5, **kwargs):
+        return Connection(
+            mavutil.mavlink_connection(constr, **kwargs),
+            None if (outdir is None or store_messages=="none") else Connection.create_folder(outdir),
+            store_messages, append, n, timeout
+        )
+    
     def __str__(self):
         return f"Connection({self.master.address})"
 
@@ -71,7 +79,7 @@ class Connection(Thread):
         raise AttributeError(f"{name} not found in {self}")
 
     def run(self):
-        last_t = time()
+        last_t = None
         while self.is_alive():
             try:
                 msg = self.master.recv_msg()
@@ -80,10 +88,11 @@ class Connection(Thread):
                         break
                     else:
                         if self.timeout is not None:
-                            if time() - last_t > self.timeout:
-                                break
-                            last_t = time()
+                            if last_t is not None:
+                                if time() - last_t > self.timeout:
+                                    raise Exception(f"Connection lost, timeout after {self.timeout} seconds.")
                         continue
+                last_t = time()
                 system_id = self._system_from_message(msg)
                 if system_id not in self.msgs:
                     self.msgs[system_id] = {}
