@@ -1,25 +1,23 @@
 from droneinterface.vehicle import Vehicle
-from droneinterface.messages import mavlink
 from time import sleep, time
-import logger
-from json import dumps
-from flightplotting import plotsec
-
-logger.basicConfig(level=logger.DEBUG)
+from droneinterface import enable_logging
+from loguru import logger
+enable_logging('DEBUG')
 
 #setup the connection
 vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, 1, "log_tmp")
 
+
+vehicle.wait_for_test(lambda : vehicle.get_SysStatus().can_arm)
 
 #getting a single mavlink message, wrapped in a pyflightcoach wrapper
 logger.info(vehicle.get_GlobalOrigin(5, None).position)
 logger.info(vehicle.get_GlobalPositionInt(5, None).position)
 
 #getting a pyflightcoach state object (combines 3 mavlink messages):
-logger.info(vehicle.get_state(2))
+logger.info(vehicle.get_state(2).data)
 
-ids = [0, 26, 31, 32]
-
+logger.info(vehicle.state.ids)
 
 def print_rates(keys, duration=5, rate=2):
     end = time() + duration
@@ -28,18 +26,12 @@ def print_rates(keys, duration=5, rate=2):
         sleep(1/rate)
 
 
-#print_rates(ids)
+print_rates(vehicle.state.ids)
 
 ##subscribing to a higer rate for some messages
-st = vehicle.get_state()
 with vehicle.subscribe(vehicle.state.ids, 10):
-    while st.duration < 5:
-        st = st.append(vehicle.last_state())
-        print(st.duration)
+    print_rates(vehicle.state.ids)
 
-
-plotsec(st).show()
-
-
+print_rates(vehicle.state.ids)
 
 pass

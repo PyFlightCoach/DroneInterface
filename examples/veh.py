@@ -1,16 +1,32 @@
-from droneinterface import enable_logging
-from droneinterface.vehicle import Vehicle
+from droneinterface import enable_logging, Vehicle, mavlink, logger
+import geometry as g
 
-enable_logging('DEBUG')
+enable_logging('INFO')
 
 vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, input=False, timeout=1, retries=20)
 
-while not vehicle.get_SysStatus().sensor_health.mav_sys_status_prearm_check:
-    pass
+vehicle.wait_for_test(lambda : vehicle.get_SysStatus().can_arm)
 
-print('arming')
 vehicle.arm()
-#while vehicle.conn.is_alive():
-#    hb = vehicle.next_heartbeat(2)
-#    print((datetime.now() - datetime.fromtimestamp(hb.timestamp)).microseconds / 1000000)
-#    sleep(2)
+vehicle.set_mode(mavlink.PLANE_MODE_TAKEOFF)
+
+home: g.GPS = vehicle.get_HomePosition(None, None).home
+
+vehicle.wait_for_test(lambda : (vehicle.next_GlobalPositionInt(None).position - home).z[0] < -49 )
+
+logger.info('takeoff complete')
+
+vehicle.set_mode(mavlink.PLANE_MODE_GUIDED)
+
+ps = [
+    [500, 500, -100],
+    [500, -500, -150],
+    [-500, -500, -200],
+    [-500, 500, -250],
+    [0, 0, -30],
+
+]
+for p in ps:
+    vehicle.nav_waypoint(1, home.offset(g.Point(*p)))
+    mi = vehicle.next_MissionItemReached(None)
+

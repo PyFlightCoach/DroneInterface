@@ -1,8 +1,6 @@
 from droneinterface.vehicle import Vehicle
-from droneinterface.messages import mavlink
-from time import sleep, time
+from time import sleep
 from json import dumps
-import sys
 import os
 
 #setup the connection

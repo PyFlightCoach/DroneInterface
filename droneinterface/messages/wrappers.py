@@ -7,6 +7,7 @@ from typing import Dict
 from .wrapper_factory import wrapper_factory, wrappers
 from .mav_bitmap import mav_bitmap
 
+
 HomePosition = wrapper_factory(
     "HomePosition",
     mavlink.MAVLINK_MSG_ID_HOME_POSITION,
@@ -17,7 +18,6 @@ HomePosition = wrapper_factory(
         ("q", Quaternion, ["q"])
     ]
 )
-
 
 GlobalOrigin = wrapper_factory(
     "GlobalOrigin",
@@ -166,6 +166,9 @@ SysStatus = wrapper_factory(
         ('sensor_present', mav_bitmap('MAV_SYS_STATUS_SENSOR'), ['onboard_control_sensors_present']),
         ('sensor_enabled', mav_bitmap('MAV_SYS_STATUS_SENSOR'), ['onboard_control_sensors_enabled'])
     ],
+    dict(
+        can_arm = property(lambda self: self.sensor_health.mav_sys_status_prearm_check)
+    )
 )
 
 _ignore = list(np.zeros((18), dtype=int))

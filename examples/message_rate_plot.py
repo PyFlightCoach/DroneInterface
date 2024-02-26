@@ -2,7 +2,6 @@ import plotly.graph_objects as go
 from collections import deque
 from droneinterface import Vehicle
 from time import time, sleep
-from random import random
 
 import dash
 
@@ -12,10 +11,9 @@ from dash.dependencies import Input, Output
 from multiprocessing import Process, Array
 from threading import Thread
 from json import dumps
-import logger
-import sys
-logger.basicConfig(level=logger.INFO)
-logger.getLogger('werkzeug').setLevel(logger.ERROR)
+from droneinterface import enable_logging
+
+enable_logging('DEBUG')
 
 msgkeys = [0, 26, 31, 32]
 
@@ -95,8 +93,6 @@ def cycle_rates():
 
 
 if __name__ == '__main__':
-
-
 
 	th = Thread(target=update_traces, daemon=True)
 	th.start()
