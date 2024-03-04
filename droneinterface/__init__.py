@@ -16,7 +16,7 @@ def configure_logging(*args, **kwargs):
 from .messages import mavlink
 from pathlib import Path
 import shutil
-from .scheduling import Timeout, TooOld, NeverReceived, AwaitCondition
+from .scheduling import Timeout, TooOld, NeverReceived, AwaitCondition, Watcher
 from .connection import Connection, LastMessage
 from .vehicle import Vehicle
 

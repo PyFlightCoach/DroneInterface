@@ -99,6 +99,7 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
             setter = setter,
             __str__ = lambda self: f"id:{self.id}, name:{self.__class__.__name__}, time:{self.timestamp}",
             id = msg_id,
+            data = property(lambda self: [getattr(self, l.name) for l in links]),
             **props
         )
     )
