@@ -88,7 +88,10 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
             )
         else:
             return None
-        
+    
+    def repr(self):
+        return f"{self.__class__.__name__}(\n    {',\n    '.join([f'{l.name}={getattr(self, l.name)}' for l in links])}\n)"
+
     Cls = type(
         name,
         (object,),
@@ -98,6 +101,7 @@ def wrapper_factory(name:str, msg_id: int, links: list, props: dict=None, set_id
             encoder = encoder,
             setter = setter,
             __str__ = lambda self: f"id:{self.id}, name:{self.__class__.__name__}, time:{self.timestamp}",
+            __repr__ = repr,
             id = msg_id,
             data = property(lambda self: [getattr(self, l.name) for l in links]),
             **props

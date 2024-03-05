@@ -13,6 +13,9 @@ def mav_bitmap(name):
         def getattr(self, name):
             return lookup[name] & self.value == lookup[name]
 
+        def repr(self):
+            return f"{self.__class__.__name__}({self.value}:{[k for k, v in lookup.items() if v & self.value == v]})"
+
         attrs = {name: property(partial(getattr, name=name)) for name in lookup.keys()}
 
         enums[name] = type(
@@ -21,6 +24,7 @@ def mav_bitmap(name):
             dict(
                 lookup = lookup,
                 __init__ = constructor,
+                __repr__ = repr,
                 data = property(lambda self: [self.value]),
                 **attrs
             )
