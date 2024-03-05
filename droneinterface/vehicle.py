@@ -34,7 +34,7 @@ class Vehicle:
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
     
     @staticmethod
-    def connect(constr: str, sysid: int, compid:int=1, wfb=True, origin: Origin=None, **kwargs) -> Vehicle:
+    def connect(constr: str, sysid: int=1, compid:int=1, wfb=True, origin: Origin=None, **kwargs) -> Vehicle:
         logger.info(f"Connecting to {constr}, sys {sysid}, comp {compid} ")
         conn = Connection.connect(constr, **kwargs)
         conn.start()

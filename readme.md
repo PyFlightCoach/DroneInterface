@@ -5,7 +5,7 @@ using the PyFlightCoach Libraries
 #### Setup the connection:
 ```sh
 from droneinterface import Vehicle
-vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, 1, "log_tmp")
+vehicle = Vehicle.connect('tcp:127.0.0.1:5762')
 ```
 
 #### Get a single mavlink message wrapped in a pyflightcoach wrapper:

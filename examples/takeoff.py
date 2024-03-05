@@ -7,7 +7,7 @@ import logger
 logger.basicConfig(level=logger.INFO)
 
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5762', 1, input=False)
+vehicle = Vehicle.connect('tcp:127.0.0.1:5762')
 
 
 vehicle.set_mode(mavlink.PLANE_MODE_TAKEOFF)
