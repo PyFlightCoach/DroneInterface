@@ -13,7 +13,7 @@ def configure_logging(*args, **kwargs):
     logger.remove(0)
     logger.add(*args, **kwargs)
 
-from .messages import mavlink
+from .messages import mavlink, wrappermap
 from pathlib import Path
 import shutil
 from .scheduling import Timeout, TooOld, NeverReceived, AwaitCondition, Watcher

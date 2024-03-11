@@ -31,6 +31,6 @@ class AwaitCondition(Thread):
 
     def check_timeout(self):
         if self.timeout is not None:
-            if time() - self.start_time > self._timeout:
+            if time() - self.start_time > self.timeout:
                 self.stop()
                 raise Timeout(f"Timeout after {self.timeout} seconds waiting for test {self.fun}")

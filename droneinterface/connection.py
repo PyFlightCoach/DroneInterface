@@ -28,8 +28,8 @@ class Connection(Thread):
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
         self.outdir.mkdir(exist_ok=True)
         
-        self.msgs: Dict[int: Dict[Union[int, str]: LastMessage]] = {}   #first key system id, second key message id
-
+        self.msgs: dict[int: dict[str: LastMessage]] = {}   #first key system id, second key message id
+        self.parameters: dict[int: dict[str: float]] = {}   #first key system id, second key parameter name
         if any(Path(self.outdir).iterdir()):
             if not append:
                 raise Exception("Outdir is not empty. Provide an empty directory or set append=True")
@@ -116,8 +116,13 @@ class Connection(Thread):
                 if msg_id in waiter_index:
                     waiter_index[msg_id].set()
                 
+                if system_id not in self.parameters:
+                    self.parameters[system_id] = {}
+                if msg_id == 22: # mavlink.MAVLINK_MSG_ID_PARAM_VALUE
+                    self.parameters[system_id][msg.param_id] = (msg.param_value, msg.param_type)
+                
             except Exception as ex:
-                raise Exception(f'Connection Error {ex}') from ex
+                logger.exception(f'Connection Error {ex}')
 
     def add_waiter(self, systemid, msgid) -> Event:
         if systemid not in self.waiters:

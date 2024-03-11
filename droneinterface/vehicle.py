@@ -14,8 +14,7 @@ from . import mavlink
 from . import Connection, LastMessage
 from pathlib import Path
 from droneinterface.scheduling import Observer, Repeater, MessageWaiter, Timeout, TooOld, NeverReceived
-
-
+from .scheduling import AwaitCondition
 
 class Vehicle:
     def __init__(self, conn: Connection, sysid: int, compid:int, origin: Origin=None) -> None:
@@ -71,9 +70,13 @@ class Vehicle:
             if _spl[1] in wrappermap:
                 if _spl[0] in ["last", "get", "next", "_last", "_get", "_next"]:
                     return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)
+                elif _spl[0] == 'send':
+                    return lambda *args, **kwargs: self.send_message(wrappermap[_spl[1]](time(), self.sysid, self.compid, *args, **kwargs))
         if name in all_commands:
             return lambda *args, **kwargs : self.send_command(name, *args, **kwargs)
         
+        if name in ['parameters', 'msgs']:
+            return getattr(self.conn, name)[self.sysid]
         raise AttributeError(f"{name} not found in message wrappers or command map")
     
     def wait_for_test(self, test, timeout=None):
@@ -126,6 +129,31 @@ class Vehicle:
         logger.debug(f"Sending message {str(msg)}")
         self.conn.master.mav.send(msg if isinstance(msg, mavlink.MAVLink_message) else msg.encoder())
     
+    def get_parameter(self, name, timeout=1, use_cache = True):
+        
+        if not use_cache:
+            if name in self.conn.parameters[self.sysid]:
+                del self.conn.parameters[self.sysid][name]       
+        
+        waiter = AwaitCondition(lambda : name in self.conn.parameters[self.sysid], timeout)
+        if name not in self.conn.parameters[self.sysid]:
+            self.send_paramrequestread(name.encode('utf8'), -1)
+        waiter.join()
+        return self.conn.parameters[self.sysid][name]
+
+    def set_parameter(self, name, value, timeout=1):
+        ptype = self.get_parameter(name, timeout, True)[1]
+        del self.conn.parameters[self.sysid][name]
+        while True:
+            try:
+                ac = AwaitCondition(lambda : name in self.conn.parameters[self.sysid], timeout)
+                self.send_paramset(name.encode('utf8'), value, ptype)
+                ac.join()
+                break
+            except Timeout:
+                pass
+            
+
     def schedule(self, method, rate) -> Repeater:
         return Repeater(method, rate)
 

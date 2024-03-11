@@ -26,7 +26,6 @@ def navcommand(fun):
 def intcommand(fun):
     return _command(fun, mavlink.MAVLINK_MSG_ID_COMMAND_INT, 9)
 
-
 @longcommand
 def arm():
     return (mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 21196)
