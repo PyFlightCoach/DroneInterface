@@ -16,6 +16,7 @@ from pathlib import Path
 from droneinterface.scheduling import Observer, Repeater, MessageWaiter, Timeout, TooOld, NeverReceived
 from .scheduling import AwaitCondition
 
+
 class Vehicle:
     def __init__(self, conn: Connection, sysid: int, compid:int, origin: Origin=None) -> None:
         super().__init__()
@@ -141,9 +142,10 @@ class Vehicle:
         waiter.join()
         return self.conn.parameters[self.sysid][name]
 
-    def set_parameter(self, name, value, timeout=1):
+    def set_parameter(self, name, value, timeout=1, retries=5):
         ptype = self.get_parameter(name, timeout, True)[1]
         del self.conn.parameters[self.sysid][name]
+        tries = 0
         while True:
             try:
                 ac = AwaitCondition(lambda : name in self.conn.parameters[self.sysid], timeout)
@@ -151,8 +153,23 @@ class Vehicle:
                 ac.join()
                 break
             except Timeout:
-                pass
-            
+                logger.info(f'Failed to set Parameter {name} to {value} after {timeout} seconds')
+                if tries > retries:
+                    break
+                tries += 1  
+
+    def request_parameters(self, timeout=1):
+        logger.info('Requesting parameters')
+        self.send_paramrequestlist()
+        count = 0
+        while True:
+            try:
+                self.next_message(mavlink.MAVLINK_MSG_ID_PARAM_VALUE, timeout)
+                count += 1
+            except Timeout:
+                logger.info(f'counted {count} parameters, total = {len(self.conn.parameters[self.sysid])}')
+                break
+        return self.conn.parameters[self.sysid]
 
     def schedule(self, method, rate) -> Repeater:
         return Repeater(method, rate)

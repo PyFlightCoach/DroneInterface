@@ -1,24 +1,23 @@
 from __future__ import annotations
 from pymavlink import mavutil, DFReader
-from typing import Union, List, Dict
+from typing import Union
 from time import time, sleep
 from datetime import datetime
 from threading import Thread, Event
 from loguru import logger
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import numpy as np
 import pandas as pd
 import sys
 from .last_message import LastMessage
-
+from .scheduling.exceptions import Timeout
 
 class Connection(Thread):
     def __init__(
             self, 
             master: mavutil.mavfile=None, 
             outdir: Path=None, 
-            store_messages: Union[List[int], str]="all", 
+            store_messages: Union[list[int], str]="all", 
             append=True, 
             n=2,
             timeout=5
@@ -30,6 +29,7 @@ class Connection(Thread):
         
         self.msgs: dict[int: dict[str: LastMessage]] = {}   #first key system id, second key message id
         self.parameters: dict[int: dict[str: float]] = {}   #first key system id, second key parameter name
+
         if any(Path(self.outdir).iterdir()):
             if not append:
                 raise Exception("Outdir is not empty. Provide an empty directory or set append=True")
@@ -40,9 +40,12 @@ class Connection(Thread):
                         self.msgs[sysid] = {}
                     lm = LastMessage.build_csv(f)
                     self.msgs[sysid][lm.id] = lm
+                    
         self.n = n
         self.timeout = timeout
         self.store_messages = store_messages
+        self.last_t = None
+
         if isinstance(self.store_messages, list):
             self.check_store = lambda id: id in self.store_messages
         elif self.store_messages == "all":
@@ -63,7 +66,7 @@ class Connection(Thread):
         self.waiters = {}
 
     @staticmethod
-    def connect(constr, outdir: Path=None, store_messages: Union[List[int], str]="all", append=True, n=2, timeout=5, **kwargs):
+    def connect(constr, outdir: Path=None, store_messages: Union[list[int], str]="all", append=True, n=2, timeout=5, **kwargs):
         return Connection(
             mavutil.mavlink_connection(constr, **kwargs),
             None if (outdir is None or store_messages=="none") else Connection.create_folder(outdir),
@@ -79,7 +82,6 @@ class Connection(Thread):
         raise AttributeError(f"{name} not found in {self}")
 
     def run(self):
-        last_t = None
         while self.is_alive():
             try:
                 msg = self.master.recv_msg()
@@ -88,11 +90,11 @@ class Connection(Thread):
                         break
                     else:
                         if self.timeout is not None:
-                            if last_t is not None:
-                                if time() - last_t > self.timeout:
-                                    raise Exception(f"Connection lost, timeout after {self.timeout} seconds.")
+                            if self.last_t is not None:
+                                if time() - self.last_t > self.timeout:
+                                    raise Timeout(f"Connection lost, timeout after {self.timeout} seconds.")
                         continue
-                last_t = time()
+                self.last_t = time()
                 system_id = self._system_from_message(msg)
                 if system_id not in self.msgs:
                     self.msgs[system_id] = {}
@@ -123,6 +125,8 @@ class Connection(Thread):
                 
             except Exception as ex:
                 logger.exception(f'Connection Error {ex}')
+                if isinstance(ex, Timeout):
+                    break
 
     def add_waiter(self, systemid, msgid) -> Event:
         if systemid not in self.waiters:
