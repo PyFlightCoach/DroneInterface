@@ -12,6 +12,7 @@ import sys
 from .last_message import LastMessage
 from .scheduling.exceptions import Timeout
 
+
 class Connection(Thread):
     def __init__(
             self, 
@@ -27,9 +28,10 @@ class Connection(Thread):
         self.outdir = Path(TemporaryDirectory().name) if outdir is None else outdir
         self.outdir.mkdir(exist_ok=True)
         
+        self.systems: list[int] = []
         self.msgs: dict[int: dict[str: LastMessage]] = {}   #first key system id, second key message id
-        self.parameters: dict[int: dict[str: float]] = {}   #first key system id, second key parameter name
-
+        
+        self.waiters = {}
         if any(Path(self.outdir).iterdir()):
             if not append:
                 raise Exception("Outdir is not empty. Provide an empty directory or set append=True")
@@ -63,8 +65,6 @@ class Connection(Thread):
             self._system_from_message = lambda msg : msg.get_srcSystem()
             self._id_from_message = lambda msg : msg.__class__.id
 
-        self.waiters = {}
-
     @staticmethod
     def connect(constr, outdir: Path=None, store_messages: Union[list[int], str]="all", append=True, n=2, timeout=5, **kwargs):
         return Connection(
@@ -95,48 +95,43 @@ class Connection(Thread):
                                     raise Timeout(f"Connection lost, timeout after {self.timeout} seconds.")
                         continue
                 self.last_t = time()
-                system_id = self._system_from_message(msg)
-                if system_id not in self.msgs:
-                    self.msgs[system_id] = {}
-                if system_id not in self.waiters:
-                    self.waiters[system_id] = {}
-                msg_index = self.msgs[system_id]
+                system_id, msg = self.receive_message(msg)
                 
-                msg_id = self._id_from_message(msg)
-                if msg_id not in msg_index:
-                    msg_index[msg_id] = self.builder(
-                        msg, 
-                        (self.outdir / f"{system_id}_{msg_id}.csv") if self.check_store(msg_id) else None,
-                        self.n
-                    )
-                
-                msg_index[msg_id].receive_message(msg)
-
-                #the events would be better as part of the LastMessage instances, 
-                # but cant be as the msg_index dict is not pre-populated
                 waiter_index = self.waiters[system_id]
-                if msg_id in waiter_index:
-                    waiter_index[msg_id].set()
-                
-                if system_id not in self.parameters:
-                    self.parameters[system_id] = {}
-                if msg_id == 22: # mavlink.MAVLINK_MSG_ID_PARAM_VALUE
-                    self.parameters[system_id][msg.param_id] = (msg.param_value, msg.param_type)
-                
+                if msg.id in waiter_index:
+                    waiter_index[msg.id].set()
+
             except Exception as ex:
                 logger.exception(f'Connection Error {ex}')
                 if isinstance(ex, Timeout):
                     break
+    def receive_message(self, msg):
+        system_id = self.add_system(self._system_from_message(msg))
+
+        msg_id = self._id_from_message(msg)
+        
+        if msg_id not in self.msgs[system_id]:
+            self.msgs[system_id][msg_id] = self.builder(
+                msg, 
+                (self.outdir / f"{system_id}_{msg_id}.csv") if self.check_store(msg_id) else None,
+                self.n
+            )
+        
+        return system_id, self.msgs[system_id][msg_id].receive_message(msg)
+    
+    def add_system(self, system_id):
+        if system_id not in self.systems:
+            self.systems.append(system_id)
+            self.msgs[system_id] = {}
+            self.waiters[system_id] = {}
+        return system_id
 
     def add_waiter(self, systemid, msgid) -> Event:
-        if systemid not in self.waiters:
-            self.waiters[systemid] = {}
-        waiter_index = self.waiters[systemid]
-        if msgid in waiter_index:
-            waiter_index[msgid].clear()
+        if msgid in self.waiters[systemid]:
+            self.waiters[systemid][msgid].clear()
         else:
-            waiter_index[msgid] = Event()
-        return waiter_index[msgid]
+            self.waiters[systemid][msgid] = Event()
+        return self.waiters[systemid][msgid]
 
     def remove_waiter(self, systemid, msgid):
         if systemid in self.waiters:

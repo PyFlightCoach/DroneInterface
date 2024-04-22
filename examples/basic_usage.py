@@ -1,26 +1,16 @@
 from droneinterface import Vehicle, enable_logging, Timeout, logger
-
+from json import dumps
 
 enable_logging('DEBUG')
 
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5762')
+ve = Vehicle.connect('tcp:127.0.0.1:5762')
 
 
-print(vehicle.get_parameter('SCR_ENABLE'))
+print(ve.get_parameter('SCR_ENABLE'))
 
 
-vehicle.send_paramrequestlist()
+ve.request_parameters()
 
 
-while True:
-    try:
-        msg = vehicle.next_paramvalue(2)
-    except Timeout:
-        break
-for k, v in vehicle.parameters.items():
-    logger.info(f'{k}: {v}')
-
-vehicle.set_parameter('SCRTSPD_kD', 0.0)
-
-print(vehicle.get_parameter('SCRTSPD_kD'))
+print(dumps(ve.parameters, indent=2))

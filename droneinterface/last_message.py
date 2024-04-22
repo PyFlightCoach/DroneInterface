@@ -87,27 +87,23 @@ class LastMessage:
             n
         )
 
-    def receive_message(self, msg):        
+    def receive_message(self, msg):
         self.history.append(msg)
         t = time()
         n = len(self.history)
-        if not self.last_time is None:
+        if self.last_time is not None:
             self.rate = self.rate * (n - 1) / n +  1 / (n * (t - self.last_time))
         self.last_time = t
         if self.outfile is not None:
             data = [str(v(msg)) for v in self.colmap.values()]
             print(",".join(data), file=self.io)
             self.io.flush()
+        return self
 
     def create_message(self, data:pd.Series):
         msg =  mavlink.mavlink_map[self.id](**{k:rmap(data) for k, rmap in self.rev_colmap.items()})
         msg._timestamp = data.name
         return msg
-
-   # @property
-   # def rate(self):
-   #     rate = np.round(1 / np.mean(np.diff(self.times)), 0)
-   #     return 0 if np.isnan(rate) else rate
 
     def all_messages(self) -> pd.DataFrame:
         return pd.read_csv(self.outfile).set_index("timestamp")

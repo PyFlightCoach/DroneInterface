@@ -12,23 +12,31 @@ from .combinators import append_combinators
 import inspect
 from . import mavlink
 from . import Connection, LastMessage
+from pymavlink.mavutil import mavfile_state
 from pathlib import Path
 from droneinterface.scheduling import Observer, Repeater, MessageWaiter, Timeout, TooOld, NeverReceived
 from .scheduling import AwaitCondition
 
 
 class Vehicle:
+    mfst_keys = mavfile_state().__dict__.keys()
     def __init__(self, conn: Connection, sysid: int, compid:int, origin: Origin=None) -> None:
         super().__init__()
         self.conn: Connection = conn
         self.sysid = sysid
         self.compid = compid
-        if self.sysid not in self.conn.msgs:
-            self.conn.msgs[self.sysid] = {}
+        
+        self.conn.add_system(self.sysid)
+        
         self.msgs = self.conn.msgs[self.sysid]
         self.origin = origin
     
         append_combinators(self)
+
+    
+    @property
+    def parameters(self):
+        return self.conn.master.param_state[(self.sysid, self.compid)].params if (self.sysid, self.compid) in self.conn.master.param_state else {}
 
     def __str__(self):
         return f"Vehicle(add={self.conn.master.address}, sysid={self.sysid}, compid={self.compid})"
@@ -66,19 +74,21 @@ class Vehicle:
 
     def __getattr__(self, name):
         name = name.lower()
-        if "_" in name:
+        if name in all_commands:
+            return lambda *args, **kwargs : self.send_command(name, *args, **kwargs)
+        elif name in ['parameters', 'msgs']:
+            return getattr(self.conn, name)[self.sysid]
+        elif name in self.mfst_keys:
+            return getattr(self.conn.master.sysid_state[self.sysid], name)
+        elif "_" in name:
             _spl = name.split("_")
             if _spl[1] in wrappermap:
                 if _spl[0] in ["last", "get", "next", "_last", "_get", "_next"]:
                     return lambda *args, **kwargs: getattr(self, f"{_spl[0]}_message")(wrappermap[_spl[1]].id, *args, **kwargs)
                 elif _spl[0] == 'send':
                     return lambda *args, **kwargs: self.send_message(wrappermap[_spl[1]](time(), self.sysid, self.compid, *args, **kwargs))
-        if name in all_commands:
-            return lambda *args, **kwargs : self.send_command(name, *args, **kwargs)
         
-        if name in ['parameters', 'msgs']:
-            return getattr(self.conn, name)[self.sysid]
-        raise AttributeError(f"{name} not found in message wrappers or command map")
+        raise AttributeError(f"{name} not available in {self}")
     
     def wait_for_test(self, test, timeout=None):
         start = time()
@@ -130,33 +140,34 @@ class Vehicle:
         logger.debug(f"Sending message {str(msg)}")
         self.conn.master.mav.send(msg if isinstance(msg, mavlink.MAVLink_message) else msg.encoder())
     
-    def get_parameter(self, name, timeout=1, use_cache = True):
-        
-        if not use_cache:
-            if name in self.conn.parameters[self.sysid]:
-                del self.conn.parameters[self.sysid][name]       
-        
-        waiter = AwaitCondition(lambda : name in self.conn.parameters[self.sysid], timeout)
-        if name not in self.conn.parameters[self.sysid]:
-            self.send_paramrequestread(name.encode('utf8'), -1)
-        waiter.join()
-        return self.conn.parameters[self.sysid][name]
-
-    def set_parameter(self, name, value, timeout=1, retries=5):
-        ptype = self.get_parameter(name, timeout, True)[1]
-        del self.conn.parameters[self.sysid][name]
-        tries = 0
-        while True:
+    def get_parameter(self, name, use_cache = True, retry_interval=2, retries=5, raise_on_fail=True):
+        count = 0
+        while ((name not in self.parameters) or (not use_cache)) and retries > count:
             try:
-                ac = AwaitCondition(lambda : name in self.conn.parameters[self.sysid], timeout)
-                self.send_paramset(name.encode('utf8'), value, ptype)
-                ac.join()
+                waiter = AwaitCondition(lambda : self.next_message(22,retry_interval).param_id==name, retry_interval)
+                self.send_paramrequestread(name.encode('utf8'), -1)
+                waiter.join()
                 break
             except Timeout:
-                logger.info(f'Failed to set Parameter {name} to {value} after {timeout} seconds')
-                if tries > retries:
-                    break
-                tries += 1  
+                logger.debug(f'failed to receive parameter {name}, value may be out of date')
+            count +=1
+        else:
+            if raise_on_fail and count >= retries:
+                raise Timeout(f"Failed to get parameter {name} after {retries} retries")
+        return self.parameters[name] if name in self.parameters else None
+
+    def set_parameter(self, name, value, retry_interval=2, retries=5):
+        count = 0
+        while self.get_parameter(name, True, retry_interval, retries) != value and count < retries:
+            try:
+                waiter = AwaitCondition(lambda : self.next_message(22,retry_interval).param_id==name, retry_interval)
+                self.send_paramset(name.encode('utf8'), value, mavlink.MAVLINK_TYPE_FLOAT)
+                waiter.join()
+                break
+            except Timeout:
+                logger.debug(f'failed to set parameter {name} to {value}')
+            count += 1
+        return self.get_parameter(name)
 
     def request_parameters(self, timeout=1):
         logger.info('Requesting parameters')
@@ -167,9 +178,9 @@ class Vehicle:
                 self.next_message(mavlink.MAVLINK_MSG_ID_PARAM_VALUE, timeout)
                 count += 1
             except Timeout:
-                logger.info(f'counted {count} parameters, total = {len(self.conn.parameters[self.sysid])}')
+                logger.info(f'counted {count} parameters, total = {len(self.parameters)}')
                 break
-        return self.conn.parameters[self.sysid]
+        return self.parameters
 
     def schedule(self, method, rate) -> Repeater:
         return Repeater(method, rate)
