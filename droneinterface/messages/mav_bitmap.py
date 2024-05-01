@@ -1,5 +1,6 @@
 from droneinterface.messages import mavlink
 from functools import partial
+
 enums = {}
 
 def mav_bitmap(name):
