@@ -1,0 +1,21 @@
+[build-system]
+requires = [
+    "setuptools>=60",
+    "setuptools-scm>=8.0"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "droneinterface"
+authors = [{name = "Thomas David", email = "thomasdavid0@gmail.com"}]
+description = "A tidy way to talk to a Drone through PyMavLink"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "GNU GPL v3"}
+classifiers = ["Programming Language :: Python :: 3",]
+dynamic = ["version", "dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools_scm]
