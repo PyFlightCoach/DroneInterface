@@ -11,6 +11,7 @@ import pandas as pd
 class Watcher(Thread):
     def __init__(self, fun, maxlen, timeout=None) -> None:
         super().__init__(daemon=True)
+        self._is_stopped = False
         self.fun = fun
         self.times = deque(maxlen=maxlen)
         self.data = deque(maxlen=maxlen)
@@ -32,6 +33,8 @@ class Watcher(Thread):
             self.check_timeout()
 
     def last_result_age(self):
+        if len(self.times) == 0:
+            return np.inf
         return time() - (self.start_time + self.times[-1])
 
     def stop(self):

@@ -4,7 +4,7 @@ from pathlib import Path
 from droneinterface import Connection
 import plotly.express as px
 import plotly.graph_objects as go
-from flightplotting import titlerenderer
+from plotting import titlerenderer
 from time import sleep
 
 

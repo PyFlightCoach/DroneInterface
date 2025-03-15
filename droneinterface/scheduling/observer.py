@@ -6,6 +6,7 @@ from .rate_history import RateHistory
 class Observer(Thread):
     def __init__(self, veh, ids: list[int], rate: int) -> None:
         super().__init__(daemon=True)
+        self._is_stopped=False
         self.veh = veh
         self.base_rates = {id: RateHistory(self.veh, id, rate) for id in ids}
         

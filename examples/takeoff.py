@@ -1,13 +1,12 @@
 from droneinterface.vehicle import Vehicle
 from droneinterface.messages import mavlink
 from time import time
-from flightplotting import plotsec
-import logger
+from plotting import plotsec
+from loguru import logger
 
-logger.basicConfig(level=logger.INFO)
-
+logger.enable("droneinterface")
 #setup the connection
-vehicle = Vehicle.connect('tcp:127.0.0.1:5762')
+vehicle = Vehicle.connect('udp:127.0.0.1:14550')
 
 
 vehicle.set_mode(mavlink.PLANE_MODE_TAKEOFF)

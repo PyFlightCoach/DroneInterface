@@ -7,6 +7,7 @@ def enable_logging(level='INFO'):
     logger.enable("droneinterface")
     logger.remove(0)
     logger.add(sys.stdout, colorize=True, level=level, format="<level>{message}</level>")
+    return logger 
 
 def configure_logging(*args, **kwargs):
     logger.enable("droneinterface")
